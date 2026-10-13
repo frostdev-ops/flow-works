@@ -8,7 +8,11 @@ Flow-works turns an Ellucian Degree Works audit into a semester-by-semester map:
 
 ![Overview: progress, critical path, bottlenecks and the timeline](docs/overview.jpg)
 
-## Two views
+## Views
+
+**Roadmap** (the default) reads top to bottom like a plan on paper. Everything you've finished sits in one compact row at the top. Below it, the current term is marked *You are here*, then each planned term follows with its credit total and running total, and Graduation sits at the bottom. Columns are your requirement areas, so you can read straight down your major or your gen-eds. Lines show only the prerequisites still ahead. They run in the channels between columns and the gutters between rows, so they never cross a card. Hover a card to light up the completed courses it builds on.
+
+![Roadmap view](docs/roadmap.jpg)
 
 **Timeline** is the curriculum view. Columns are terms: transfer credit, completed terms, the current term, then planned terms through graduation. Each card lists its prerequisites (✓ met, **!** missing) and how many later courses it unlocks.
 

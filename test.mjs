@@ -1,7 +1,7 @@
 // node test.mjs — sanity check of the parser + planner against demo.json.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseAudit, columns, analyze, layers, route, web, prereqGroups, nextTerm, titleCase } from './model.js';
+import { parseAudit, columns, analyze, layers, route, web, roadmap, prereqGroups, nextTerm, titleCase } from './model.js';
 
 assert.deepEqual(prereqGroups([['', 'CS', '2300'], ['A', 'MATH', '1160'], ['O', 'MATH', '1350'], ['O', '', '']]), [['CS 2300'], ['MATH 1160', 'MATH 1350']]);
 assert.equal(nextTerm('Fall 2026'), 'Spring 2027');
@@ -54,6 +54,21 @@ for (const cols of [columns(m, 15).map(c => c.items), lay]) {
   for (const p of r.paths) p.forEach((k, i) => i && assert.equal(colOf[k], colOf[p[i - 1]] + 1, 'paths step one column at a time'));
   assert.equal(r.cols.flat().filter(x => !x.via).length, cols.flat().length, 'routing keeps every card');
 }
+const rcols = columns(m, 15), RM = roadmap(rcols, a.edges, m.groups.map(g => g.id));
+assert.equal(RM.rows[0].kind, 'done', 'completed work folds into the first row');
+assert.equal(RM.rows[0].items.length, rcols.filter(c => c.kind === 'transfer' || c.kind === 'past').reduce((n, c) => n + c.items.length, 0));
+assert.equal(RM.rows.length, 1 + rcols.filter(c => c.kind === 'current' || c.kind === 'future').length);
+assert.ok(RM.routes.every(r => r.to === 'grad' || a.byKey[r.from].status !== 'done'), 'only prerequisites still ahead are drawn');
+assert.ok(RM.routes.some(r => r.drop) && RM.routes.some(r => r.to === 'grad'));
+const hop = roadmap([{ kind: 'current', label: 'T1', items: [{ key: 'a', group: 'g0' }] },
+  { kind: 'future', label: 'T2', items: [{ key: 'b', group: 'g2' }, { key: 'c', group: 'g1' }] }], [{ from: 'a', to: 'b' }], ['g0', 'g1', 'g2']);
+assert.deepEqual(['x1', 'x2', 'hop'].map(k => hop.routes.find(r => r.to === 'b')[k]), [1, 2, 0], 'far lanes hop across the gutter below the source row');
+for (const r of RM.routes.filter(r => r.drop)) {
+  const p = RM.at[r.from], q = RM.at[r.to];
+  assert.ok(p.l === q.l && q.r === p.r + 1 && p.s === p.n - 1 && q.s === 0, 'drops only straight down a lane into the next row');
+}
+for (const list of [...RM.segs.vseg, ...RM.segs.hseg])
+  list.forEach((p, i) => list.slice(i + 1).forEach(q => assert.ok(p.t !== q.t || p.hi + 0.02 <= q.lo || q.hi + 0.02 <= p.lo, 'segments sharing a track never overlap')));
 const W = web(columns(m, 15), a.edges);
 const angles = columns(m, 15).flatMap(c => c.items).map(it => W.angle[it.key]);
 assert.ok(angles.every((t, i) => !i || t > angles[i - 1]), 'terms run clockwise');
