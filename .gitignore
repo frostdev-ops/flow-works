@@ -2,3 +2,4 @@
 # never commit a real student audit
 audit*.json
 *.audit.json
+.claude/
