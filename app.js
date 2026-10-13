@@ -1,4 +1,4 @@
-import { parseAudit, columns, analyze, layers, route, web, courseTree } from './model.js';
+import { parseAudit, columns, analyze, layers, route, web, roadmap, courseTree } from './model.js';
 
 const $ = s => document.querySelector(s);
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -24,8 +24,8 @@ const svg = (tag, attrs = {}) => {
 };
 
 let model, A, edges = [], drawn = '', maxCredits = +store.get('flowworks:credits') || 15;
-const VIEWS = ['web', 'timeline', 'graph'];
-let view = VIEWS.includes(store.get('flowworks:layout')) ? store.get('flowworks:layout') : 'web';
+const VIEWS = ['roadmap', 'web', 'timeline', 'graph'];
+let view = VIEWS.includes(store.get('flowworks:viewmode')) ? store.get('flowworks:viewmode') : 'roadmap';
 const color = g => {
   const i = model.groups.findIndex(x => x.id === g);
   return g === 'free' || i < 0 ? 'var(--gfree)' : `var(--g${i % 8})`;
@@ -172,6 +172,168 @@ function card(it, col, crit) {
   return el;
 }
 
+// ---------- roadmap view ----------
+
+let RM;
+const place = (el, row, col) => {
+  el.style.gridRow = row;
+  el.style.gridColumn = col;
+  return el;
+};
+const pill = it => h('button', {
+  type: 'button', class: 'pill', 'data-key': it.key, style: `--c:${color(it.group)}`,
+  title: [it.code, it.title, it.grade && `Grade ${it.grade}`].filter(Boolean).join(' · '),
+  onmouseenter: () => focusOn(it.key), onmouseleave: () => focusOn(null),
+  onfocus: () => focusOn(it.key), onblur: () => focusOn(null), onclick: () => detail(it),
+}, h('span', {}, it.code || it.title), it.grade && h('b', {}, it.grade));
+
+// Polyline → path with rounded corners.
+const rounded = (pts, r = 9) => pts.map((p, i) => {
+  if (!i) return `M${p}`;
+  if (i === pts.length - 1) return `L${p}`;
+  const toward = (q, k) => {
+    const d = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1;
+    return [p[0] + ((q[0] - p[0]) * k) / d, p[1] + ((q[1] - p[1]) * k) / d];
+  };
+  const [a, n] = [pts[i - 1], pts[i + 1]];
+  return `L${toward(a, Math.min(r, Math.hypot(p[0] - a[0], p[1] - a[1]) / 2))} Q${p} ${toward(n, Math.min(r, Math.hypot(n[0] - p[0], n[1] - p[1]) / 2))}`;
+}).join(' ');
+
+function roadmapView(intro, terms, grad, old) {
+  const track = $('#track');
+  RM = roadmap(terms, A.edges, model.groups.map(g => g.id));
+  const { rows, lanes, cells } = RM, L = lanes.length, crit = new Set(A.critical);
+  RM.chW = RM.tracksV.map(n => 22 + n * 7);
+  const busy = l => rows.some((r, ri) => r.kind !== 'done' && cells[ri][l].length);
+  const cur = rows.findIndex(r => r.kind === 'current'), mark = cur >= 0 ? cur : rows.findIndex(r => r.kind === 'future');
+  $('#viewnote').textContent = 'Read top to bottom: what’s done, where you are, each term ahead, then graduation. Columns are requirement areas; lines are prerequisites still ahead.';
+  track.classList.add('roadmap');
+  track.style.gridTemplateColumns = ['minmax(92px, 124px)', ...lanes.flatMap((g, l) => [RM.chW[l] + 'px', busy(l) ? 'minmax(150px, 1fr)' : 'minmax(116px, .6fr)']), RM.chW[L] + 'px'].join(' ');
+  track.style.gridTemplateRows = ['auto 6px', ...rows.map((r, i) => `auto ${i === rows.length - 1 ? 46 : 26 + RM.tracksH[i] * 7}px`), 'auto'].join(' ');
+
+  const kids = [svg('svg', { class: 'edges', 'aria-hidden': 'true' })];
+  lanes.forEach((id, l) => {
+    const g = model.groups.find(x => x.id === id);
+    kids.push(place(h('div', { class: 'lanehead', style: `--c:${color(id)}` }, h('span', { class: 'name', title: g.title }, g.title),
+      h('span', { class: 'pc' }, g.pct == null ? '' : g.pct + '%'), g.pct != null && h('span', { class: 'meter' }, h('i', { style: `--w:${g.pct}%` }))), 1, 3 + 2 * l));
+  });
+  let cum = 0;
+  rows.forEach((r, ri) => {
+    const line = 3 + 2 * ri, cr = Math.round(r.items.reduce((n, it) => n + it.credits, 0) * 10) / 10;
+    const transfer = r.terms?.[0] === 'Transfer credit', terms = (r.terms?.length || 0) - transfer;
+    cum += cr;
+    kids.push(place(h('div', { class: `rowband ${r.kind}` }), line, '1 / -1'));
+    kids.push(place(h('div', { class: `rail ${r.kind}` },
+      ri === mark && h('span', { class: 'you' }, h('i'), cur >= 0 ? 'You are here' : 'Next up'),
+      h('span', { class: 'kind' }, r.kind === 'done' ? [transfer && 'Transfer', terms && plural(terms, 'term')].filter(Boolean).join(' + ') : KIND[r.kind]),
+      h('strong', {}, r.label),
+      h('span', { class: 'cr' }, `${cr} cr`),
+      r.kind !== 'done' && h('span', { class: 'cum' }, `Total ${Math.round(cum)} / ${model.total}`)), line, 1));
+    lanes.forEach((id, l) => kids.push(place(h('div', { class: 'cell' + (r.kind === 'done' ? ' pills' : '') }, cells[ri][l].map(it => {
+      const el = r.kind === 'done' ? pill(it) : card(it, ri, crit);
+      el.col = ri;
+      return el;
+    })), line, 3 + 2 * l)));
+  });
+  const end = 3 + 2 * rows.length;
+  const cap = h('div', { class: 'cap', 'data-key': 'grad' }, h('div', { class: 'medal', 'aria-hidden': 'true' }), h('strong', {}, 'Graduate'), h('span', {}, `${grad} · ${model.total} credits`));
+  cap.querySelector('.medal').append($('#cap-icon').content.cloneNode(true));
+  kids.push(place(h('div', { class: 'rail grad' }, h('span', { class: 'kind' }, 'Goal'), h('strong', {}, 'Graduation')), end, 1));
+  kids.push(place(h('div', { class: 'gradcell' }, cap), end, `3 / ${2 * L + 2}`));
+  track.replaceChildren(...kids);
+
+  // Hover tracing walks every prerequisite link, including the completed ones that aren't drawn.
+  edges = [...A.edges, ...RM.routes.filter(r => r.to === 'grad')];
+  let last = 0;
+  if (!reduce) {
+    for (const el of track.querySelectorAll('[data-key]')) {
+      const o = old.get(el.dataset.key);
+      if (o && !intro) {
+        const n = el.getBoundingClientRect();
+        if (o.left !== n.left || o.top !== n.top)
+          el.animate([{ transform: `translate(${o.left - n.left}px,${o.top - n.top}px)` }, { transform: 'none' }], { duration: 700, easing: EASE });
+      } else {
+        const delay = intro ? (el.col ?? rows.length) * 130 + [...el.parentNode.children].indexOf(el) * 30 : 250;
+        last = Math.max(last, delay);
+        el.animate([{ opacity: 0, transform: 'translateY(-14px) scale(.97)' }, { opacity: 1, transform: 'none' }],
+          { duration: el.dataset.key === 'grad' ? 900 : 520, delay, easing: el.dataset.key === 'grad' ? 'cubic-bezier(.3,1.6,.5,1)' : EASE, fill: 'backwards' });
+      }
+    }
+    if (intro) track.querySelectorAll('.lanehead, .rail, .rowband').forEach(el =>
+      el.animate([{ opacity: 0, transform: 'translateY(-8px)' }, { opacity: 1, transform: 'none' }],
+        { duration: 500, delay: Math.max(0, (parseInt(el.style.gridRow) - 3) / 2) * 130, easing: EASE, fill: 'backwards' }));
+  }
+  drawn = '';
+  requestAnimationFrame(() => roadmapEdges(intro ? last * 0.6 + 350 : 550));
+}
+
+function roadmapEdges(delay) {
+  const track = $('#track'), lines = track.querySelector('.edges');
+  if (!lines || !RM) return;
+  drawn = track.scrollWidth + 'x' + track.scrollHeight;
+  lines.setAttribute('width', track.scrollWidth);
+  lines.setAttribute('height', track.scrollHeight);
+  const box = el => {
+    let x = 0, y = 0;
+    for (let e = el; e && e !== track; e = e.offsetParent) { x += e.offsetLeft; y += e.offsetTop; }
+    return { x, y, w: el.offsetWidth, h: el.offsetHeight };
+  };
+  const at = k => box(track.querySelector(`[data-key="${CSS.escape(k)}"]`));
+  const heads = [...track.querySelectorAll('.lanehead')].map(box), rails = [...track.querySelectorAll('.rail')].map(box);
+  const X = (c, t) => (c ? heads[c - 1].x + heads[c - 1].w : heads[0].x - RM.chW[0]) + RM.chW[c] / 2 + (t - (RM.tracksV[c] - 1) / 2) * 7;
+  const gutter = r => (rails[r].y + rails[r].h + rails[r + 1].y) / 2;
+  const Y = (r, t) => gutter(r) + (t - (RM.tracksH[r] - 1) / 2) * 7;
+  const critLinks = new Set(A.critical.slice(1).map((k, i) => A.critical[i] + '>' + k));
+
+  // Which side of each card a line leaves or enters; lines sharing a side fan out along it.
+  const routes = RM.routes.map(r => {
+    const a = RM.at[r.from], b = RM.at[r.to];
+    return { ...r, sa: r.drop ? 'B' : r.x1 === a.l + 1 ? 'R' : 'L', sb: r.drop ? 'T' : b && ((r.x2 ?? r.x1) === b.l ? 'L' : 'R') };
+  });
+  const fan = {};
+  for (const r of routes) {
+    (fan[r.from + '|' + r.sa] ||= []).push(r);
+    if (r.sb) (fan[r.to + '|' + r.sb] ||= []).push(r);
+  }
+  const spread = (key, side, r, b) => {
+    const list = fan[key + '|' + side], o = (list.indexOf(r) - (list.length - 1) / 2) * 6;
+    return Math.max(-(b.h / 2 - 8), Math.min(b.h / 2 - 8, o));
+  };
+
+  lines.replaceChildren(...routes.map((r, i) => {
+    const A1 = at(r.from), to = r.to === 'grad' ? null : A.byKey[r.to];
+    let pts;
+    if (r.drop) {
+      const B1 = at(r.to);
+      pts = [[A1.x + A1.w / 2, A1.y + A1.h], [B1.x + B1.w / 2, B1.y]];
+    } else {
+      const ay = A1.y + A1.h / 2 + spread(r.from, r.sa, r, A1), x1 = X(r.x1, r.t1);
+      pts = [[r.sa === 'R' ? A1.x + A1.w : A1.x, ay], [x1, ay]];
+      if (!to) {
+        const cap = at('grad'), gy = gutter(RM.rows.length - 1), mx = cap.x + cap.w / 2;
+        pts.push([x1, gy], [mx, gy], [mx, cap.y]);
+      } else {
+        const B1 = at(r.to), by = B1.y + B1.h / 2 + spread(r.to, r.sb, r, B1);
+        if (r.hop != null) {
+          const y = Y(r.hop, r.th), x2 = X(r.x2, r.t2);
+          pts.push([x1, y], [x2, y], [x2, by]);
+        } else pts.push([x1, by]);
+        pts.push([r.sb === 'L' ? B1.x : B1.x + B1.w, by]);
+      }
+    }
+    const cls = !to ? 'tograd' : [to.status === 'planned' && 'planned', critLinks.has(r.from + '>' + r.to) && 'crit'].filter(Boolean).join(' ');
+    const p = svg('path', { d: rounded(pts.map(q => q.map(v => Math.round(v * 10) / 10))), class: cls, style: `--c:${color((to || A.byKey[r.from]).group)}` });
+    p.dataset.from = r.from;
+    p.dataset.to = r.to;
+    if (delay != null && !reduce) requestAnimationFrame(() => {
+      const len = p.getTotalLength();
+      p.animate([{ strokeDasharray: len, strokeDashoffset: len }, { strokeDasharray: len, strokeDashoffset: 0 }],
+        { duration: 800, delay: delay + i * 14, easing: 'ease-out', fill: 'backwards' });
+    });
+    return p;
+  }));
+}
+
 function board(first) {
   const track = $('#track'), switched = track.dataset.view !== view;
   track.dataset.view = view;
@@ -180,6 +342,9 @@ function board(first) {
   A = analyze(terms);
   const grad = stats(terms);
   insights();
+  track.className = 'track';
+  track.removeAttribute('style');
+  if (view === 'roadmap') return roadmapView(first || switched, terms, grad, old);
   if (view === 'web') return webView(first || switched, terms, grad);
   track.classList.remove('web');
 
@@ -340,6 +505,12 @@ function webView(intro, terms, grad) {
     lines.append(p);
   }
 
+  // Each course owns a "pizza slice" from just outside the lanes to the term band: a big, visible click target.
+  const wedge = {};
+  cols.forEach((c, ci) => {
+    const t = W.terms[ci], w = (t.a1 - t.a0) / Math.max(1, c.items.length);
+    c.items.forEach((it, i) => (wedge[it.key] = [t.a0 + i * w, t.a0 + (i + 1) * w]));
+  });
   const nodes = svg('g', { class: 'wnodes' }), placed = [];
   let pointerDown = false;
   for (const c of cols) for (const it of c.items) {
@@ -357,7 +528,9 @@ function webView(intro, terms, grad) {
     name.textContent = short(it.title);
     tip.textContent = [it.code, it.title, `${it.credits} cr`, STATUS[it.status]].filter(Boolean).join(' · ');
     label.append(code, name);
-    inner.append(tip, svg('circle', { class: 'halo', r: r + 5 }), svg('circle', { class: 'dot', r }), label);
+    const [w0, w1] = wedge[it.key], ri = R - 22, ro = RB - 10, off = ([px, py]) => `${(px - x).toFixed(1)},${(py - y).toFixed(1)}`;
+    const slice = svg('path', { class: 'slice', d: `M${off(P(ro, w0))} A${ro},${ro} 0 0 1 ${off(P(ro, w1))} L${off(P(ri, w1))} A${ri},${ri} 0 0 0 ${off(P(ri, w0))}Z` });
+    inner.append(tip, slice, svg('circle', { class: 'halo', r: r + 5 }), svg('circle', { class: 'dot', r }), label);
     g.append(inner);
     const i = placed.length;
     g.addEventListener('mouseenter', () => focusOn(it.key));
@@ -671,7 +844,7 @@ document.querySelectorAll('[name=view]').forEach(r => {
   r.checked = r.value === view;
   r.addEventListener('change', () => {
     view = r.value;
-    store.set('flowworks:layout', view);
+    store.set('flowworks:viewmode', view);
     board(false);
   });
 });
@@ -683,7 +856,7 @@ $('#reset').addEventListener('click', () => {
 
 const pane = $('#board');
 pane.addEventListener('pointerdown', e => {
-  if (e.pointerType !== 'mouse' || e.button || e.target.closest('.card, .cap, .web, .webctl')) return;
+  if (e.pointerType !== 'mouse' || e.button || e.target.closest('button, a, input, label, [role=button], .cap, .web, .webctl')) return;
   const x = e.clientX, left = pane.scrollLeft;
   pane.setPointerCapture(e.pointerId);
   pane.classList.add('grabbing');
@@ -693,7 +866,7 @@ pane.addEventListener('pointerdown', e => {
 });
 new ResizeObserver(() => {
   const t = $('#track');
-  if (drawn && drawn !== t.scrollWidth + 'x' + t.scrollHeight) drawEdges();
+  if (drawn && drawn !== t.scrollWidth + 'x' + t.scrollHeight) (view === 'roadmap' ? roadmapEdges : drawEdges)();
 }).observe($('#track'));
 
 boot();

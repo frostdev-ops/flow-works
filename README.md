@@ -8,7 +8,15 @@ Flow-works turns an Ellucian Degree Works audit into a semester-by-semester map:
 
 ![Overview: progress, critical path, bottlenecks and the timeline](docs/overview.jpg)
 
-## Two views
+## Views
+
+**Roadmap** (the default) reads top to bottom like a plan on paper. Everything you've finished sits in one compact row at the top. Below it, the current term is marked *You are here*, then each planned term follows with its credit total and running total, and Graduation sits at the bottom. Columns are your requirement areas, so you can read straight down your major or your gen-eds. Lines show only the prerequisites still ahead. They run in the channels between columns and the gutters between rows, so they never cross a card. Hover a card to light up the completed courses it builds on.
+
+![Roadmap view](docs/roadmap.jpg)
+
+**Web** puts graduation at the hub and every course on one ring, with your terms running clockwise. Each course owns a slice of the wheel (a big click target), prerequisite lines travel on concentric lanes so they never cross a course, and bottlenecks grow bigger dots. Drag to spin it; clicking a course, a term name, or stepping with ← → turns it to where labels read straight across.
+
+![Web view](docs/web.jpg)
 
 **Timeline** is the curriculum view. Columns are terms: transfer credit, completed terms, the current term, then planned terms through graduation. Each card lists its prerequisites (✓ met, **!** missing) and how many later courses it unlocks.
 
@@ -18,13 +26,13 @@ Flow-works turns an Ellucian Degree Works audit into a semester-by-semester map:
 
 ![Prerequisites view](docs/prerequisites.jpg)
 
-Both views share three insights:
+Every view shares three insights:
 
 - **Critical path:** your longest prerequisite chain still ahead. It sets the minimum number of terms you have left.
 - **Bottlenecks:** unfinished courses ranked by how many later courses depend on them.
 - **Check with your advisor:** prerequisites that aren't on your record or in the plan.
 
-Lines never pass under a card: a line that spans several columns gets a reserved gap in each column it crosses, and cards are re-ordered to cut crossings. Hover a course to trace its whole chain. Click a course for details. Drag the max-credits slider and the plan re-flows with animation.
+Lines never pass under a card: a line that spans several columns gets a reserved gap in each column it crosses, and cards are re-ordered to cut crossings. Hover a course to trace its whole chain. Click any course, in any view, for a flowchart of its prerequisite tree and everything it unlocks; click a course in that chart to follow the chain, with a breadcrumb trail back. Drag the max-credits slider and the plan re-flows with animation.
 
 ## Use it
 
