@@ -278,14 +278,14 @@ function drawEdges(delay) {
 // ---------- web view ----------
 
 const CAP = ['M12 3 1 8.5 12 14l9-4.5V16h2V8.5L12 3Z', 'M5.5 11.8V16c0 1.9 2.9 3.5 6.5 3.5s6.5-1.6 6.5-3.5v-4.2L12 15.1l-6.5-3.3Z'];
-const short = (s, n = 20) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s);
+const short = (s, n = 18) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s);
 const P = (r, t) => [+(r * Math.cos(t)).toFixed(1), +(r * Math.sin(t)).toFixed(1)];
 
 function webView(intro, terms, grad) {
   const track = $('#track');
   const gi = Object.fromEntries(model.groups.map((g, i) => [g.id, i]));
   const cols = terms.map(c => ({ ...c, items: [...c.items].sort((a, b) => gi[a.group] - gi[b.group] || (a.code || a.title).localeCompare(b.code || b.title)) }));
-  const W = web(cols, A.edges), { R, hub } = W, RB = R + 150, S = R + 196;
+  const W = web(cols, A.edges), { R, hub } = W, RB = R + 182, S = R + 228;
   const crit = new Set(A.critical), critLinks = new Set(A.critical.slice(1).map((k, i) => A.critical[i] + '>' + k));
   const size = it => (it.status === 'done' ? 6 : 6.5 + Math.min(A.info[it.key]?.unlocks || 0, 6) * 1.3);
   const old = new Map([...track.querySelectorAll('.wnode')].map(g => [g.dataset.key, g.pos]));
