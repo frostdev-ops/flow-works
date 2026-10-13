@@ -189,20 +189,38 @@ export function analyze(cols) {
   return { edges, needs, missing, info, necks, critical: critical.length > 1 ? critical : [], byKey };
 }
 
-// Layered layout for the prerequisite view: column = longest prereq chain above a course,
-// rows ordered by a few barycenter sweeps to cut line crossings. Courses with no links are left out.
-// ponytail: long edges aren't routed around cards (no dummy nodes); add them if crossings get unreadable.
+// Prerequisite view columns: column = longest prereq chain above a course. Courses with no links are left out.
 export function layers(a) {
-  const up = {}, down = {}, lv = {}, pos = {}, cols = [];
-  for (const e of a.edges) { (up[e.to] ||= []).push(e.from); (down[e.from] ||= []).push(e.to); }
+  const up = {}, lv = {}, cols = [], linked = new Set();
+  for (const e of a.edges) { (up[e.to] ||= []).push(e.from); linked.add(e.from).add(e.to); }
   const L = k => (lv[k] ??= up[k] ? 1 + Math.max(...up[k].map(L)) : 0);
-  for (const k of Object.keys(a.byKey)) if (up[k] || down[k]) (cols[L(k)] ||= []).push(k);
-  const place = c => c.forEach((k, i) => (pos[k] = i));
+  for (const k of Object.keys(a.byKey)) if (linked.has(k)) (cols[L(k)] ||= []).push(a.byKey[k]);
+  return cols;
+}
+
+// Edge routing: a link that spans several columns gets a "via" slot in every column it crosses, so lines
+// run through gaps between cards instead of under them. Cards and slots are then ordered by barycenter
+// sweeps to cut crossings. Returns per-column entries (items or { key, via: true }) and each edge's key path.
+export function route(cols, edges) {
+  const at = {}, out = cols.map(c => [...c]), up = {}, down = {}, pos = {};
+  cols.forEach((c, ci) => c.forEach(it => (at[it.key] = ci)));
+  const paths = edges.map((e, ei) => {
+    const path = [e.from];
+    for (let ci = at[e.from] + 1; ci < at[e.to]; ci++) {
+      const key = `via${ei}:${ci}`;
+      out[ci].push({ key, via: true });
+      path.push(key);
+    }
+    path.push(e.to);
+    for (let i = 1; i < path.length; i++) { (up[path[i]] ||= []).push(path[i - 1]); (down[path[i - 1]] ||= []).push(path[i]); }
+    return path;
+  });
+  const place = c => c.forEach((x, i) => (pos[x.key] = i));
   const bary = (k, nb) => (nb[k] ? nb[k].reduce((s, n) => s + pos[n], 0) / nb[k].length : pos[k]);
-  cols.forEach(place);
+  out.forEach(place);
   for (let pass = 0; pass < 6; pass++) {
     const nb = pass % 2 ? down : up;
-    for (const c of pass % 2 ? [...cols].reverse() : cols) { c.sort((x, y) => bary(x, nb) - bary(y, nb)); place(c); }
+    for (const c of pass % 2 ? [...out].reverse() : out) { c.sort((x, y) => bary(x.key, nb) - bary(y.key, nb)); place(c); }
   }
-  return cols.map(c => c.map(k => a.byKey[k]));
+  return { cols: out, paths };
 }

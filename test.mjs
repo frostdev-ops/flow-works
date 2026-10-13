@@ -1,7 +1,7 @@
 // node test.mjs — sanity check of the parser + planner against demo.json.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseAudit, columns, analyze, layers, prereqGroups, nextTerm, titleCase } from './model.js';
+import { parseAudit, columns, analyze, layers, route, prereqGroups, nextTerm, titleCase } from './model.js';
 
 assert.deepEqual(prereqGroups([['', 'CS', '2300'], ['A', 'MATH', '1160'], ['O', 'MATH', '1350'], ['O', '', '']]), [['CS 2300'], ['MATH 1160', 'MATH 1350']]);
 assert.equal(nextTerm('Fall 2026'), 'Spring 2027');
@@ -38,4 +38,11 @@ const lay = layers(a), level = {};
 lay.forEach((c, i) => c.forEach(it => (level[it.key] = i)));
 assert.ok(a.edges.every(e => level[e.from] < level[e.to]), 'every prereq sits in an earlier layer');
 assert.deepEqual(lay[0].map(x => x.code).sort(), ['CS 1100', 'MATH 1500'], 'roots');
+for (const cols of [columns(m, 15).map(c => c.items), lay]) {
+  const r = route(cols, a.edges.filter(e => cols.some(c => c.some(x => x.key === e.from)) && cols.some(c => c.some(x => x.key === e.to))));
+  const colOf = {};
+  r.cols.forEach((c, i) => c.forEach(x => (colOf[x.key] = i)));
+  for (const p of r.paths) p.forEach((k, i) => i && assert.equal(colOf[k], colOf[p[i - 1]] + 1, 'paths step one column at a time'));
+  assert.equal(r.cols.flat().filter(x => !x.via).length, cols.flat().length, 'routing keeps every card');
+}
 console.log('ok');

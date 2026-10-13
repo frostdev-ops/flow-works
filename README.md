@@ -24,7 +24,7 @@ Both views share three insights:
 - **Bottlenecks:** unfinished courses ranked by how many later courses depend on them.
 - **Check with your advisor:** prerequisites that aren't on your record or in the plan.
 
-Hover a course to trace its whole chain. Click a course for details. Drag the max-credits slider and the plan re-flows with animation.
+Lines never pass under a card: a line that spans several columns gets a reserved gap in each column it crosses, and cards are re-ordered to cut crossings. Hover a course to trace its whole chain. Click a course for details. Drag the max-credits slider and the plan re-flows with animation.
 
 ## Use it
 
@@ -39,7 +39,7 @@ The bookmarklet reads the audit you're already viewing (same site, your own sess
 - Nothing is uploaded. The data travels in the `#fragment`, which browsers never send to servers, and the page itself is static files on GitHub Pages.
 - Your student ID and email are removed before the data leaves the Degree Works tab.
 - The audit stays in your browser's `localStorage` until you click **Load another audit**.
-- It's about 650 lines of plain JavaScript with no dependencies, so you can read all of it.
+- It's about 700 lines of plain JavaScript with no dependencies, so you can read all of it.
 
 ## Does it work with my school?
 
@@ -66,7 +66,7 @@ node test.mjs                 # parser, planner and prerequisite analysis checks
 
 | File | What it does |
 | --- | --- |
-| `model.js` | Pure functions: audit JSON → model, the planner, prerequisite analysis, graph layout |
+| `model.js` | Pure functions: audit JSON → model, the planner, prerequisite analysis, graph layout, edge routing |
 | `app.js` | Rendering, animation (FLIP and SVG line drawing), interactions |
 | `bookmarklet.js` | Runs on Degree Works; `app.js` turns it into the drag-to-bookmarks link |
 | `demo.json` | A fictional student in the real API shape |

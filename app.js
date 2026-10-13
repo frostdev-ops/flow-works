@@ -1,4 +1,4 @@
-import { parseAudit, columns, analyze, layers } from './model.js';
+import { parseAudit, columns, analyze, layers, route } from './model.js';
 
 const $ = s => document.querySelector(s);
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -183,15 +183,23 @@ function board(first) {
   const cols = graph
     ? layers(A).map((items, i) => ({ label: `Level ${i + 1}`, kind: 'layer', items, note: plural(items.length, 'course') }))
     : terms.map(c => ({ ...c, note: `${c.credits} cr` }));
+  const R = route(cols.map(c => c.items), A.edges), feeds = new Set(A.edges.map(e => e.from));
   const crit = new Set(A.critical), critLinks = new Set(A.critical.slice(1).map((k, i) => A.critical[i] + '>' + k));
   const shown = cols.reduce((n, c) => n + c.items.length, 0), all = terms.reduce((n, c) => n + c.items.length, 0);
   $('#viewnote').textContent = graph
     ? `Each column needs something to its left. ${all - shown ? plural(all - shown, 'course') + ' with no prerequisite links hidden.' : ''}`
     : 'Hover a course to trace its prerequisites · click for details · drag to pan';
 
-  const colEls = cols.map((c, ci) => h('section', { class: `col ${c.kind}${c.items.length > 8 ? ' wide' : ''}` },
-    h('header', {}, h('span', { class: 'kind' }, KIND[c.kind]), h('h2', {}, c.label || '—'), h('span', { class: 'cr' }, c.note)),
-    ...c.items.map(it => card(it, ci, crit))));
+  const node = ci => x => (x.via ? h('i', { class: 'via', 'data-via': x.key }) : card(x, ci, crit));
+  const colEls = cols.map((c, ci) => {
+    const head = h('header', {}, h('span', { class: 'kind' }, KIND[c.kind]), h('h2', {}, c.label || '—'), h('span', { class: 'cr' }, c.note));
+    const entries = R.cols[ci];
+    // A long first column splits in two; courses that feed later ones go on the right so their lines cross no card.
+    if (ci === 0 && entries.length > 8) return h('section', { class: `col ${c.kind} wide` }, head,
+      h('div', { class: 'stack' }, entries.filter(x => !feeds.has(x.key)).map(node(ci))),
+      h('div', { class: 'stack' }, entries.filter(x => feeds.has(x.key)).map(node(ci))));
+    return h('section', { class: `col ${c.kind}` }, head, ...entries.map(node(ci)));
+  });
   const tail = [];
   if (!graph) {
     const cap = h('div', { class: 'cap', 'data-key': 'grad' }, h('div', { class: 'medal', 'aria-hidden': 'true' }), h('strong', {}, 'Graduate'), h('span', {}, grad));
@@ -200,11 +208,11 @@ function board(first) {
   } else if (!cols.length) tail.push(h('p', { class: 'empty' }, 'This audit came without prerequisite data, so there are no links to draw. Use the bookmarklet to include them.'));
   track.replaceChildren(svg('svg', { class: 'edges', 'aria-hidden': 'true' }), ...colEls, ...tail);
 
-  edges = A.edges.map(e => ({
-    ...e, group: A.byKey[e.to].group,
+  edges = A.edges.map((e, i) => ({
+    ...e, path: R.paths[i], group: A.byKey[e.to].group,
     cls: [A.byKey[e.to].status === 'planned' && 'planned', critLinks.has(e.from + '>' + e.to) && 'crit'].filter(Boolean).join(' '),
   }));
-  if (!graph) for (const it of terms.at(-1)?.items || []) edges.push({ from: it.key, to: 'grad', group: it.group, cls: 'tograd' });
+  if (!graph) for (const it of terms.at(-1)?.items || []) edges.push({ from: it.key, to: 'grad', path: [it.key, 'grad'], group: it.group, cls: 'tograd' });
 
   let last = 0;
   if (!reduce) for (const el of track.querySelectorAll('[data-key]')) {
@@ -233,14 +241,23 @@ function drawEdges(delay) {
   drawn = track.scrollWidth + 'x' + track.scrollHeight;
   lines.setAttribute('width', track.scrollWidth);
   lines.setAttribute('height', track.scrollHeight);
-  const el = k => track.querySelector(`[data-key="${CSS.escape(k)}"]`);
+  const el = k => track.querySelector(`[data-key="${CSS.escape(k)}"], [data-via="${CSS.escape(k)}"]`);
   lines.replaceChildren(...edges.map((e, i) => {
-    const a = el(e.from), b = el(e.to);
-    if (!a || !b) return '';
-    const ax = a.offsetLeft + a.offsetWidth, ay = a.offsetTop + a.offsetHeight / 2;
-    const bx = b.offsetLeft, by = b.offsetTop + (e.to === 'grad' ? 60 : b.offsetHeight / 2);
-    const dx = Math.max(28, (bx - ax) / 2);
-    const p = svg('path', { d: `M${ax},${ay} C${ax + dx},${ay} ${bx - dx},${by} ${bx},${by}`, class: e.cls, style: `--c:${color(e.group)}` });
+    const nodes = e.path.map(el);
+    if (nodes.some(n => !n)) return '';
+    // Curves bend only in the gutters between columns; inside a column the line runs straight through its via gap.
+    const [a, ...rest] = nodes, b = rest.pop();
+    let x = a.offsetLeft + a.offsetWidth, y = a.offsetTop + a.offsetHeight / 2, d = `M${x},${y}`;
+    const to = (x2, y2) => { const dx = (x2 - x) / 2; d += ` C${x + dx},${y} ${x2 - dx},${y2} ${x2},${y2}`; };
+    for (const v of rest) {
+      const vy = v.offsetTop + v.offsetHeight / 2;
+      to(v.offsetLeft, vy);
+      x = v.offsetLeft + v.offsetWidth;
+      y = vy;
+      d += ` L${x},${y}`;
+    }
+    to(b.offsetLeft, b.offsetTop + (e.to === 'grad' ? 60 : b.offsetHeight / 2));
+    const p = svg('path', { d, class: e.cls, style: `--c:${color(e.group)}` });
     p.dataset.from = e.from;
     p.dataset.to = e.to;
     if (delay != null && !reduce) {
