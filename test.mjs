@@ -1,7 +1,7 @@
 // node test.mjs — sanity check of the parser + planner against demo.json.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseAudit, columns, analyze, layers, route, web, prereqGroups, nextTerm, titleCase } from './model.js';
+import { parseAudit, columns, analyze, layers, route, web, courseTree, prereqGroups, nextTerm, titleCase } from './model.js';
 
 assert.deepEqual(prereqGroups([['', 'CS', '2300'], ['A', 'MATH', '1160'], ['O', 'MATH', '1350'], ['O', '', '']]), [['CS 2300'], ['MATH 1160', 'MATH 1350']]);
 assert.equal(nextTerm('Fall 2026'), 'Spring 2027');
@@ -66,4 +66,18 @@ a.edges.forEach((e, i) => {
     assert.ok(p[1] < q[0] || q[1] < p[0], 'links sharing a lane never overlap');
   });
 });
+const cs4900 = Object.values(a.byKey).find(x => x.code === 'CS 4900');
+const T = courseTree(cs4900, a, m.prereqs);
+assert.ok(T.links.every(([p, c]) => c.level - p.level === 1), 'tree links join adjacent rows');
+for (const lv of new Set(T.nodes.map(n => n.level))) {
+  const xs = T.nodes.filter(n => n.level === lv).map(n => n.x).sort((p, q) => p - q);
+  assert.ok(xs.every((x, i) => !i || x - xs[i - 1] >= 1), 'cards in a row never overlap');
+}
+assert.deepEqual(T.nodes.filter(n => n.level === -1).map(n => n.it.code).sort(), ['CS 3400', 'CS 3500']);
+assert.ok(T.nodes.some(n => n.it?.code === 'CS 1100' && n.level === -5) || T.nodes.some(n => n.more), 'chain reaches back or marks more');
+const cs3600 = Object.values(a.byKey).find(x => x.code === 'CS 3600');
+const or = courseTree(cs3600, a, m.prereqs).nodes.find(n => n.kind === 'or');
+assert.deepEqual(or.options.map(o => o.code), ['MATH 2400', 'MATH 2600'], 'OR group becomes one box');
+const slot2 = m.remaining.find(x => x.after);
+assert.equal(courseTree(slot2, a, m.prereqs).nodes.find(n => n.level === -1).it.key, slot2.after, 'chained slot shows its predecessor');
 console.log('ok');

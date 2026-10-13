@@ -311,9 +311,64 @@ code { font: .88em var(--mono); background: color-mix(in oklab, var(--ink) 7%, t
 .hubmedal .m1 { font: 700 17px var(--display); }
 .hubmedal .m2 { font: 500 12px var(--sans); opacity: .85; }
 
+/* web: spinning */
+.track.web { position: relative; }
+.web { cursor: grab; touch-action: pan-y pinch-zoom; user-select: none; -webkit-user-select: none; }
+.web.spinning { cursor: grabbing; }
+.web.spinning .wnode { pointer-events: none; }
+.tlabel { cursor: pointer; outline: none; transition: fill .2s; }
+.tlabel:hover, .tlabel:focus-visible { fill: var(--ink); text-decoration: underline; }
+.webctl { position: absolute; top: 8px; left: 0; z-index: 2; display: flex; gap: 8px; }
+.webctl .btn { padding: 6px 12px; font-size: 12.5px; background: color-mix(in oklab, var(--card) 80%, transparent); backdrop-filter: blur(6px); }
+
+/* ---------- course modal: prerequisite flowchart ---------- */
+.course .trail { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 40px 12px 0; font: 600 12px var(--mono); color: var(--muted); }
+.course .trail button { all: unset; cursor: pointer; padding: 3px 8px; border-radius: 7px; background: color-mix(in oklab, var(--ink) 6%, transparent); }
+.course .trail button:hover, .course .trail button:focus-visible { background: color-mix(in oklab, var(--ink) 12%, transparent); color: var(--ink); }
+.course .trail b { color: var(--ink); padding: 3px 0; }
+.flag.warn { color: color-mix(in oklab, var(--g7) 85%, var(--ink)); background: color-mix(in oklab, var(--g7) 14%, transparent); }
+.tree-scroll { overflow: auto; margin: 0 -28px; padding: 16px 28px 22px; max-height: 58vh; background: radial-gradient(color-mix(in oklab, var(--ink) 9%, transparent) 1px, transparent 1.3px) 0 0 / 18px 18px; border-block: 1px solid var(--line); }
+.tree { position: relative; margin: 0 auto; }
+.tree-lines { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+.tree-lines path { fill: none; stroke: color-mix(in oklab, var(--c) 60%, transparent); stroke-width: 2; stroke-linecap: round; }
+.tree-lines path.planned { stroke-dasharray: 5 6; animation: dash 1.1s linear infinite; }
+.tree-lines path.miss { stroke: color-mix(in oklab, var(--g7) 70%, transparent); stroke-dasharray: 2 5; }
+.tcard {
+  all: unset; box-sizing: border-box; position: absolute; width: 200px; height: 86px; display: grid; align-content: start; gap: 3px;
+  padding: 9px 11px 9px 14px; border-radius: 12px; background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow);
+  transition: transform .2s var(--ease), box-shadow .2s;
+}
+button.tcard { cursor: pointer; }
+.tcard::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3.5px; border-radius: 0 4px 4px 0; background: var(--c, var(--gfree)); }
+button.tcard:hover, button.tcard:focus-visible { transform: translateY(-2px); box-shadow: 0 0 0 2px color-mix(in oklab, var(--c) 50%, transparent), var(--shadow); outline: none; }
+.tcard.done { background: color-mix(in oklab, var(--c) 8%, var(--card)); }
+.tcard.planned { background: color-mix(in oklab, var(--card) 60%, transparent); border: 1.5px dashed color-mix(in oklab, var(--c) 55%, var(--line)); box-shadow: none; }
+.tcard.missing { --c: var(--g7); background: color-mix(in oklab, var(--g7) 8%, var(--card)); border: 1.5px dashed color-mix(in oklab, var(--g7) 60%, var(--line)); box-shadow: none; }
+.tcard.crit { border-color: color-mix(in oklab, var(--hot) 60%, var(--line)); }
+.tcard.root { box-shadow: 0 0 0 2px var(--c), 0 0 28px -4px color-mix(in oklab, var(--c) 70%, transparent), var(--shadow); }
+.tcard .top { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.tcard .code { font: 700 11.5px var(--mono); color: color-mix(in oklab, var(--c) 75%, var(--ink)); }
+.tcard .title { font-weight: 600; font-size: 12.5px; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tcard .meta { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chip { font: 600 10px var(--sans); padding: 2px 7px; border-radius: 99px; white-space: nowrap; color: var(--muted); background: color-mix(in oklab, var(--ink) 7%, transparent); }
+.chip.done { color: var(--g5); background: color-mix(in oklab, var(--g5) 14%, transparent); }
+.chip.current, .chip.registered { color: var(--accent); background: color-mix(in oklab, var(--accent) 14%, transparent); }
+.chip.missing { color: color-mix(in oklab, var(--g7) 85%, var(--ink)); background: color-mix(in oklab, var(--g7) 16%, transparent); }
+.tcard.or { --c: var(--muted); background: color-mix(in oklab, var(--card) 70%, transparent); border-style: dashed; }
+.tcard.or .code { color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-size: 10px; }
+.alts { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.alt { all: unset; cursor: pointer; font: 600 11px var(--mono); padding: 2px 7px; border-radius: 7px; color: var(--muted); border: 1px dashed var(--line); }
+.alt.pick { color: color-mix(in oklab, var(--c) 75%, var(--ink)); border: 1px solid color-mix(in oklab, var(--c) 60%, var(--line)); background: color-mix(in oklab, var(--c) 12%, transparent); }
+.alt.done.pick::before { content: "✓ "; color: var(--g5); }
+.alt:hover, .alt:focus-visible { color: var(--ink); border-color: var(--ink); }
+.alts small { color: var(--muted); font-size: 11px; }
+.more { position: absolute; left: 50%; transform: translateX(-50%); font: 600 10px var(--sans); color: var(--muted); white-space: nowrap; }
+.more.up { top: -17px; }
+.more.down { bottom: -17px; }
+
 /* ---------- detail dialog & toast ---------- */
 dialog {
-  width: min(520px, calc(100vw - 32px)); max-height: min(80vh, 720px); padding: 0; border: 1px solid var(--line); border-radius: 22px;
+  width: min(1040px, calc(100vw - 32px)); max-height: min(90vh, 980px); padding: 0; border: 1px solid var(--line); border-radius: 22px;
   color: var(--ink); background: var(--card); box-shadow: 0 30px 80px -20px rgb(0 0 0 / .45);
 }
 dialog[open] { animation: rise .35s var(--ease); }

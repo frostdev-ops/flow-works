@@ -147,6 +147,7 @@ export function parseAudit(audit, prereqRows = {}) {
     title: major?.title || degree.title, degree: degree.title, catalog: degree.catalogYearLit || degree.catalogYear || '',
     pct: Math.round(+audit.auditHeader?.percentComplete || +degree.percentComplete || 0),
     total, applied, groups, courses, remaining, lastTerm: latest?.termLabel,
+    prereqs: Object.fromEntries(Object.keys(prereqRows).map(k => [k, prereqGroups(prereqRows[k])])),
   };
 }
 
@@ -289,4 +290,59 @@ export function web(cols, edges, { slot = 34, hub = 86 } = {}) {
     });
   const step = Math.min(8, (outer - hub - 12) / Math.max(1, rows.length));
   return { R, hub, angle, terms, lane: edges.map((_, i) => (lane[i] == null ? null : outer - lane[i] * step)) };
+}
+
+// A course's prerequisite tree (rows above) and what it unlocks (rows below), for the course modal. Shared courses
+// repeat instead of merging, so every link joins adjacent rows and never crosses a card. OR groups become one box.
+export function courseTree(root, a, known = {}, { up = 4, down = 3 } = {}) {
+  const byCode = {}, kids = {};
+  for (const it of Object.values(a.byKey)) if (it.code && (!byCode[it.code] || it.status === 'done')) byCode[it.code] = it;
+  for (const e of a.edges) (kids[e.from] ||= []).push(e.to);
+  const top = { kind: 'course', it: root, level: 0 };
+  const grow = (node, it, code, lvl, seen) => {
+    const groups = it?.prereqs?.length ? it.prereqs : (code && known[code]) || [];
+    const before = it?.after && a.byKey[it.after];
+    if (lvl > up) return void (node.more = groups.length + !!before);
+    node.up = groups.map(g => {
+      const opts = g.map(c => ({ code: c, it: byCode[c] }));
+      const pick = opts.find(o => o.it && o.it.status !== 'planned') || opts.find(o => o.it) || (g.length === 1 ? opts[0] : null);
+      const n = g.length === 1 ? { kind: 'course', it: opts[0].it, code: g[0], level: -lvl } : { kind: 'or', options: opts, pick: pick?.code, level: -lvl };
+      if (pick && !seen.has(pick.code)) grow(n, pick.it, pick.code, lvl + 1, new Set([...seen, pick.code]));
+      return n;
+    });
+    if (before) {
+      const n = { kind: 'course', it: before, level: -lvl };
+      grow(n, before, before.code, lvl + 1, seen);
+      node.up.push(n);
+    }
+  };
+  const sink = (node, key, lvl, seen) => {
+    const next = (kids[key] || []).filter(t => !seen.has(t));
+    if (lvl > down) return void (node.more = next.length);
+    node.down = next.map(t => {
+      const n = { kind: 'course', it: a.byKey[t], level: lvl };
+      sink(n, t, lvl + 1, new Set([...seen, t]));
+      return n;
+    });
+  };
+  grow(top, root, root.code, 1, new Set([root.code || root.key]));
+  if (root.key) sink(top, root.key, 1, new Set([root.key]));
+
+  // Tidy layout: every subtree owns its own horizontal span, centred over (or under) its parent.
+  const nodes = [top], links = [];
+  const span = (n, dir) => (n[dir]?.length ? n[dir].reduce((s, c) => s + span(c, dir), 0) : 1);
+  const place = (n, dir, x0) => {
+    let x = x0;
+    for (const c of n[dir] || []) {
+      c.x = x + (span(c, dir) - 1) / 2;
+      nodes.push(c);
+      links.push(dir === 'up' ? [c, n] : [n, c]);
+      place(c, dir, x);
+      x += span(c, dir);
+    }
+  };
+  top.x = 0;
+  place(top, 'up', -(span(top, 'up') - 1) / 2);
+  place(top, 'down', -(span(top, 'down') - 1) / 2);
+  return { nodes, links };
 }

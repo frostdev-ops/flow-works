@@ -1,4 +1,4 @@
-import { parseAudit, columns, analyze, layers, route, web } from './model.js';
+import { parseAudit, columns, analyze, layers, route, web, courseTree } from './model.js';
 
 const $ = s => document.querySelector(s);
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -280,6 +280,8 @@ function drawEdges(delay) {
 const CAP = ['M12 3 1 8.5 12 14l9-4.5V16h2V8.5L12 3Z', 'M5.5 11.8V16c0 1.9 2.9 3.5 6.5 3.5s6.5-1.6 6.5-3.5v-4.2L12 15.1l-6.5-3.3Z'];
 const short = (s, n = 18) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s);
 const P = (r, t) => [+(r * Math.cos(t)).toFixed(1), +(r * Math.sin(t)).toFixed(1)];
+const DEG = 180 / Math.PI, READ = -0.18; // READ: just above 3 o'clock, where labels read straight across
+let webRot = null, spinToKey = () => {};
 
 function webView(intro, terms, grad) {
   const track = $('#track');
@@ -289,28 +291,31 @@ function webView(intro, terms, grad) {
   const crit = new Set(A.critical), critLinks = new Set(A.critical.slice(1).map((k, i) => A.critical[i] + '>' + k));
   const size = it => (it.status === 'done' ? 6 : 6.5 + Math.min(A.info[it.key]?.unlocks || 0, 6) * 1.3);
   const old = new Map([...track.querySelectorAll('.wnode')].map(g => [g.dataset.key, g.pos]));
-  $('#viewnote').textContent = 'Your terms run clockwise from the top; graduation is the hub. Hover a course to trace its prerequisites · click for details';
+  $('#viewnote').textContent = 'Drag to spin the wheel · click a course for its prerequisite chart · ← → step through courses · graduation is the hub';
 
   const root = svg('svg', { class: 'web', viewBox: `${-S - 80} ${-S} ${2 * S + 160} ${2 * S}`, role: 'group', 'aria-label': 'Degree web' });
   const defs = svg('defs'), lg = svg('linearGradient', { id: 'wg', x1: 0, y1: 0, x2: 1, y2: 1 });
   [['0', 'g0'], ['.55', 'g3'], ['1', 'g2']].forEach(([offset, g]) => lg.append(svg('stop', { offset, style: `stop-color:var(--${g})` })));
   defs.append(lg);
 
-  // The web itself: concentric threads, and a spoke at every term boundary.
+  // Everything on the wheel turns together inside `spin`; term labels and the hub stay upright outside it.
+  const spin = svg('g', { class: 'spin' });
   const threads = svg('g', { class: 'threads' });
   for (let k = 0; k <= 4; k++) threads.append(svg('circle', { r: hub + ((R - hub) * k) / 4, pathLength: 100 }));
   for (const t of W.terms) {
     const [x1, y1] = P(hub, t.spoke), [x2, y2] = P(RB, t.spoke);
     threads.append(svg('line', { x1, y1, x2, y2, pathLength: 100 }));
   }
-
-  const band = svg('g', { class: 'band' });
+  const band = svg('g', { class: 'band' }), tlabels = svg('g', { class: 'tlabels' }), tl = [];
   for (const t of W.terms) {
-    const mid = (t.a0 + t.a1) / 2, c = Math.cos(mid), s = Math.sin(mid), [x, y] = P(RB + 16, mid);
+    const mid = (t.a0 + t.a1) / 2;
     band.append(svg('path', { class: t.kind, pathLength: 100, d: `M${P(RB, t.a0)} A${RB},${RB} 0 ${t.a1 - t.a0 > Math.PI ? 1 : 0} 1 ${P(RB, t.a1)}` }));
-    const label = svg('text', { class: 'tlabel ' + t.kind, x, y, 'text-anchor': c > 0.25 ? 'start' : c < -0.25 ? 'end' : 'middle', 'dominant-baseline': s > 0.25 ? 'hanging' : s < -0.25 ? 'auto' : 'central' });
+    const label = svg('text', { class: 'tlabel ' + t.kind, tabindex: 0, role: 'button', 'aria-label': `Spin ${t.label || 'term'} into view` });
     label.textContent = t.label || '—';
-    band.append(label);
+    label.addEventListener('click', () => spinTo(READ - mid));
+    label.addEventListener('keydown', e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), spinTo(READ - mid)));
+    tlabels.append(label);
+    tl.push({ label, mid });
   }
 
   edges = A.edges.map((e, i) => ({
@@ -336,8 +341,9 @@ function webView(intro, terms, grad) {
   }
 
   const nodes = svg('g', { class: 'wnodes' }), placed = [];
+  let pointerDown = false;
   for (const c of cols) for (const it of c.items) {
-    const t = W.angle[it.key], [x, y] = P(R, t), r = size(it), right = Math.cos(t) >= -1e-9, info = A.info[it.key];
+    const t = W.angle[it.key], [x, y] = P(R, t), r = size(it), info = A.info[it.key];
     const hot = info && (info.unlocks >= 2 || (crit.has(it.key) && info.unlocks > 0));
     const g = svg('g', {
       class: `wnode ${it.status}${it.options ? ' choice' : ''}${hot ? ' neck' : ''}${crit.has(it.key) ? ' crit' : ''}`,
@@ -345,10 +351,7 @@ function webView(intro, terms, grad) {
       'aria-label': [it.code, it.title, STATUS[it.status], info?.unlocks && `unlocks ${info.unlocks}`].filter(Boolean).join(', '),
     });
     g.pos = [x, y];
-    const inner = svg('g', { class: 'pop' }), tip = svg('title'), label = svg('text', {
-      class: 'lbl', x: right ? r + 7 : -(r + 7), transform: `rotate(${(t * 180) / Math.PI + (right ? 0 : 180)})`,
-      'text-anchor': right ? 'start' : 'end', 'dominant-baseline': 'central',
-    });
+    const inner = svg('g', { class: 'pop' }), tip = svg('title'), label = svg('text', { class: 'lbl', 'dominant-baseline': 'central' });
     const code = svg('tspan', { class: 'c' }), name = svg('tspan', { class: 't', dx: 5 });
     code.textContent = it.code || 'Choose';
     name.textContent = short(it.title);
@@ -356,14 +359,19 @@ function webView(intro, terms, grad) {
     label.append(code, name);
     inner.append(tip, svg('circle', { class: 'halo', r: r + 5 }), svg('circle', { class: 'dot', r }), label);
     g.append(inner);
+    const i = placed.length;
     g.addEventListener('mouseenter', () => focusOn(it.key));
     g.addEventListener('mouseleave', () => focusOn(null));
-    g.addEventListener('focus', () => focusOn(it.key));
+    g.addEventListener('focus', () => { focusOn(it.key); if (!pointerDown) spinToKey(it.key); });
     g.addEventListener('blur', () => focusOn(null));
-    g.addEventListener('click', () => detail(it));
-    g.addEventListener('keydown', e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), detail(it)));
+    g.addEventListener('click', () => { spinToKey(it.key); detail(it); });
+    g.addEventListener('keydown', e => {
+      const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+      if (step) { e.preventDefault(); placed[(i + step + placed.length) % placed.length].g.focus(); }
+      else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); detail(it); }
+    });
     nodes.append(g);
-    placed.push({ g, inner, t, x, y });
+    placed.push({ g, inner, label, t, x, y, r, right: null });
   }
 
   const medal = svg('g', { class: 'hubmedal', 'data-key': 'grad' }), cap = svg('g', { class: 'capicon', transform: 'translate(-17.4 -42) scale(1.45)' });
@@ -373,16 +381,109 @@ function webView(intro, terms, grad) {
   t2.textContent = grad;
   medal.append(svg('circle', { class: 'halo', r: hub - 4 }), svg('circle', { class: 'disc', r: hub - 14 }), cap, t1, t2);
 
-  root.append(defs, threads, band, lines, nodes, medal);
+  // Turning: labels flip as they cross sides so text never reads upside down; term labels orbit upright.
+  const applyRot = () => {
+    spin.setAttribute('transform', `rotate(${(webRot * DEG).toFixed(2)})`);
+    for (const n of placed) {
+      const right = Math.cos(n.t + webRot) >= 0;
+      if (right === n.right) continue;
+      n.right = right;
+      n.label.setAttribute('transform', `rotate(${(n.t * DEG + (right ? 0 : 180)).toFixed(2)})`);
+      n.label.setAttribute('x', right ? n.r + 7 : -(n.r + 7));
+      n.label.setAttribute('text-anchor', right ? 'start' : 'end');
+    }
+    for (const { label, mid } of tl) {
+      const a = mid + webRot, c = Math.cos(a), s = Math.sin(a), [x, y] = P(RB + 16, a);
+      label.setAttribute('x', x);
+      label.setAttribute('y', y);
+      label.setAttribute('text-anchor', c > 0.25 ? 'start' : c < -0.25 ? 'end' : 'middle');
+      label.setAttribute('dominant-baseline', s > 0.25 ? 'hanging' : s < -0.25 ? 'auto' : 'central');
+    }
+  };
+  let raf = 0;
+  const halt = () => cancelAnimationFrame(raf);
+  const spinTo = (target, dur = 900) => {
+    halt();
+    const from = webRot, delta = Math.atan2(Math.sin(target - from), Math.cos(target - from));
+    if (reduce || Math.abs(delta) < 0.002) { webRot = from + delta; return applyRot(); }
+    const t0 = performance.now();
+    const step = now => {
+      const k = Math.min(1, (now - t0) / dur), e = k < 0.5 ? 4 * k ** 3 : 1 - (-2 * k + 2) ** 3 / 2;
+      webRot = from + delta * e;
+      applyRot();
+      if (k < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+  };
+  spinToKey = key => W.angle[key] != null && spinTo(READ - W.angle[key]);
+  const now = W.terms.find(t => t.kind === 'current') || W.terms.find(t => t.kind === 'future');
+  const home = now ? -Math.PI / 3 - (now.a0 + now.a1) / 2 : 0; // current term at 2 o'clock, what's next sweeps down the right
+
+  // Drag to spin, with momentum on release.
+  let drag = null;
+  root.addEventListener('pointerdown', e => {
+    if (e.button) return;
+    halt();
+    pointerDown = true;
+    const b = root.getBoundingClientRect(), cx = b.left + b.width / 2, cy = b.top + b.height / 2;
+    drag = { cx, cy, x: e.clientX, y: e.clientY, a: Math.atan2(e.clientY - cy, e.clientX - cx), t: e.timeStamp, v: 0, moved: false, id: e.pointerId };
+  });
+  root.addEventListener('pointermove', e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    if (!(e.buttons & 1)) return release(e); // button came up somewhere we didn't hear about: never stay stuck to the cursor
+    if (!drag.moved) {
+      if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 5) return;
+      drag.moved = true;
+      root.setPointerCapture(e.pointerId);
+      root.classList.add('spinning');
+    }
+    const a = Math.atan2(e.clientY - drag.cy, e.clientX - drag.cx), da = Math.atan2(Math.sin(a - drag.a), Math.cos(a - drag.a));
+    drag.v = 0.7 * (da / Math.max(1, e.timeStamp - drag.t)) + 0.3 * drag.v;
+    drag.a = a;
+    drag.t = e.timeStamp;
+    webRot += da;
+    applyRot();
+  });
+  const release = e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    let { moved, v } = drag;
+    drag = null;
+    pointerDown = false;
+    root.classList.remove('spinning');
+    if (!moved || reduce || Math.abs(v) < 0.0002) return;
+    let last = performance.now();
+    const coast = t => {
+      const dt = t - last;
+      last = t;
+      webRot += v * dt;
+      v *= 0.995 ** dt;
+      applyRot();
+      if (Math.abs(v) > 0.00004) raf = requestAnimationFrame(coast);
+    };
+    raf = requestAnimationFrame(coast);
+  };
+  root.addEventListener('pointerup', release);
+  root.addEventListener('pointercancel', release);
+  root.addEventListener('lostpointercapture', release);
+
+  spin.append(threads, band, lines, nodes);
+  root.append(defs, spin, tlabels, medal);
+  const ctl = h('div', { class: 'webctl' },
+    h('button', { type: 'button', class: 'btn ghost', onclick: () => spinTo(home, 1100) }, 'Spin to now'),
+    h('button', { type: 'button', class: 'btn ghost', onclick: () => spinTo(0, 1100) }, 'Reset'));
   track.classList.add('web');
-  track.replaceChildren(root);
+  track.replaceChildren(ctl, root);
   drawn = '';
+  const first = webRot == null;
+  if (first) webRot = reduce ? home : 0;
+  applyRot();
   if (reduce) return;
 
   const n = placed.length, wave = 300 + n * 22;
   if (intro) {
     threads.querySelectorAll('circle, line').forEach((el, i) => el.animate([{ strokeDasharray: 100, strokeDashoffset: 100 }, { strokeDasharray: 100, strokeDashoffset: 0 }], { duration: 1200, delay: i * 35, easing: 'ease-out', fill: 'backwards' }));
     band.querySelectorAll('path').forEach((el, i) => el.animate([{ strokeDasharray: 100, strokeDashoffset: 100 }, { strokeDasharray: 100, strokeDashoffset: 0 }], { duration: 700, delay: 300 + (wave - 300) * (i / W.terms.length), easing: EASE, fill: 'backwards' }));
+    tlabels.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 800, delay: 300, fill: 'backwards' });
     placed.forEach(({ inner, t }, i) => inner.animate([{ opacity: 0, transform: `translate(${-Math.cos(t) * 30}px,${-Math.sin(t) * 30}px)` }, { opacity: 1, transform: 'none' }], { duration: 650, delay: 300 + i * 22, easing: EASE, fill: 'backwards' }));
     lines.querySelectorAll('path').forEach((p, i) => {
       const len = p.getTotalLength();
@@ -390,6 +491,7 @@ function webView(intro, terms, grad) {
     });
     medal.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 600, delay: wave + 200, fill: 'backwards' });
     medal.querySelector('.disc').animate([{ transform: 'scale(.3)' }, { transform: 'none' }], { duration: 1000, delay: wave + 200, easing: 'cubic-bezier(.3,1.6,.5,1)', fill: 'backwards' });
+    if (first) setTimeout(() => spinTo(home, 1800), wave + 500); // the wheel turns your current term into reading position
   } else {
     for (const { g, inner, x, y } of placed) {
       const o = old.get(g.dataset.key);
@@ -451,30 +553,105 @@ function reach(key, fwd, seen = new Set()) {
 const focusOn = key => light(key && new Set([key, ...reach(key, true), ...reach(key, false)]));
 const focusGroup = id => light(new Set(Object.values(A.byKey).filter(x => x.group === id).map(x => x.key)));
 
-function detail(it) {
-  const d = $('#detail'), info = A.info[it.key], needs = A.needs[it.key] || [];
-  const kids = A.edges.filter(e => e.from === it.key).map(e => A.byKey[e.to]);
-  const crit = A.critical.includes(it.key);
-  d.replaceChildren(h('form', { method: 'dialog', style: `--c:${color(it.group)}` },
+// ---------- course modal: prerequisite flowchart ----------
+
+const TW = 200, TH = 86, TGX = 20, TGY = 56; // tree card size and gaps
+let trail = [];
+
+// Courses outside the chart (e.g. a prerequisite you never took) still open, from the prerequisite data alone.
+const stub = code => ({ code, title: code, status: 'missing', block: 'Not on your record or plan', prereqs: model.prereqs[code] || [], credits: 0 });
+
+function detail(it, keep) {
+  const d = $('#detail');
+  if (!keep) trail = [];
+  trail.push(it);
+  const info = A.info[it.key], crit = A.critical.includes(it.key), T = courseTree(it, A, model.prereqs);
+  const ups = T.nodes.filter(n => n.level < 0).length, downs = T.nodes.filter(n => n.level > 0).length;
+  const back = (t, i) => h('button', { type: 'button', onclick: () => { trail = trail.slice(0, i); detail(t, true); } }, t.code || short(t.title, 24));
+  const scroller = h('div', { class: 'tree-scroll' }, tree(T, it));
+  d.replaceChildren(h('form', { method: 'dialog', class: 'course', style: `--c:${color(it.group)}` },
     h('button', { class: 'x', 'aria-label': 'Close' }, '×'),
+    trail.length > 1 && h('nav', { class: 'trail', 'aria-label': 'Courses you opened' },
+      trail.slice(0, -1).map((t, i) => [back(t, i), h('span', { 'aria-hidden': 'true' }, '›')]), h('b', {}, it.code || short(it.title, 24))),
     h('p', { class: 'eyebrow' }, it.block),
     h('h3', {}, it.title),
-    h('p', { class: 'meta' }, [it.code, `${it.credits} credits`, STATUS[it.status], it.status === 'done' && it.grade && `Grade ${it.grade}`,
-      it.transfer ? 'Transfer' : it.termLabel].filter(Boolean).join(' · ')),
+    h('p', { class: 'meta' }, [it.code, it.credits && `${it.credits} credits`, STATUS[it.status] || 'Not on your record or plan',
+      it.status === 'done' && it.grade && `Grade ${it.grade}`, it.transfer ? 'Transfer' : it.termLabel,
+      info?.unlocks && `unlocks ${plural(info.unlocks, 'later course')}`].filter(Boolean).join(' · ')),
     crit && h('p', { class: 'flag' }, 'On your critical path: delaying this delays graduation.'),
-    needs.length > 0 && h('section', {}, h('h4', {}, 'Prerequisites'),
-      h('ul', { class: 'pre' }, needs.map(n => h('li', { class: n.state, title: TIP[n.state] }, n.codes.join(' or '), n.state === 'miss' && h('small', {}, ' · not on your record or plan'))))),
-    kids.length > 0 && h('section', {}, h('h4', {}, `Required by ${plural(kids.length, 'course')}${info?.unlocks > kids.length ? ` · unlocks ${info.unlocks} in total` : ''}`),
-      h('ul', { class: 'pre' }, kids.map(k => h('li', {}, [k.code, k.title].filter(Boolean).join(' · '))))),
+    it.status === 'missing' && h('p', { class: 'flag warn' }, "This prerequisite isn't on your record or in the plan. Check with your advisor; placement or a waiver may cover it."),
+    h('section', {}, h('h4', {}, ups || downs
+      ? [ups ? 'Prerequisites flow down into it' : 'No prerequisites', downs ? '; underneath is what it unlocks' : '', '. Click any course to follow the chain.'].join('')
+      : 'No prerequisite links for this course.'), scroller),
     it.options && h('section', {}, h('h4', {}, it.options.length > 1 ? `Pick from ${it.options.length} options` : 'Requirement'),
       h('ul', { class: 'opts' }, it.options.slice(0, 80).map(o => h('li', {}, o)))),
     it.status === 'planned' && h('p', { class: 'note' }, 'Planned term is a suggestion. Confirm with your advisor before registering.')));
-  d.showModal();
+  if (!d.open) d.showModal();
+  d.scrollTop = 0;
+  const r = scroller.querySelector('.tcard.root').getBoundingClientRect(), v = scroller.getBoundingClientRect();
+  scroller.scrollLeft += r.left + r.width / 2 - (v.left + v.width / 2);
+  scroller.scrollTop += r.top + r.height / 2 - (v.top + v.height / 2);
+}
+
+function tree(T, rootIt) {
+  const xs = T.nodes.map(n => n.x), lv = T.nodes.map(n => n.level);
+  const minX = Math.min(...xs), minL = Math.min(...lv);
+  const Wd = (Math.max(...xs) - minX + 1) * (TW + TGX) - TGX, Ht = (Math.max(...lv) - minL + 1) * (TH + TGY) - TGY;
+  const at = n => [(n.x - minX) * (TW + TGX), (n.level - minL) * (TH + TGY)];
+  const box = h('div', { class: 'tree', style: `width:${Wd}px;height:${Ht}px` });
+  const lines = svg('svg', { class: 'tree-lines', width: Wd, height: Ht, 'aria-hidden': 'true' });
+  const state = n => n.kind === 'or' ? (n.options.find(o => o.code === n.pick)?.it?.status || 'missing') : n.it?.status || 'missing';
+  const ring = n => Math.abs(n.level);
+  T.links.forEach(([up, down]) => {
+    // Links only join adjacent rows, so each curve lives in the gap between two rows and never crosses a card.
+    const [x1, y1] = at(up), [x2, y2] = at(down), ax = x1 + TW / 2, ay = y1 + TH, bx = x2 + TW / 2, m = (ay + y2) / 2;
+    const p = svg('path', { d: `M${ax},${ay} C${ax},${m} ${bx},${m} ${bx},${y2}`, class: state(up) === 'missing' ? 'miss' : state(down) === 'planned' ? 'planned' : '',
+      style: `--c:${color((up.it || up.options?.find(o => o.code === up.pick)?.it || {}).group)}` });
+    lines.append(p);
+    if (!reduce) requestAnimationFrame(() => {
+      const len = p.getTotalLength();
+      const k = up.level < 0 ? ring(up) : ring(down);
+      p.animate([{ strokeDasharray: len, strokeDashoffset: len }, { strokeDasharray: len, strokeDashoffset: 0 }],
+        { duration: 500, delay: 80 + k * 140, easing: 'ease-out', fill: 'backwards' });
+    });
+  });
+  box.append(lines);
+  for (const n of T.nodes) {
+    const [x, y] = at(n), el = n.kind === 'or' ? orCard(n) : courseCard(n, n.level === 0);
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    if (n.more) el.append(h('span', { class: 'more ' + (n.level < 0 ? 'up' : 'down') }, `+${n.more} more`));
+    box.append(el);
+    if (!reduce) el.animate(n.level === 0
+      ? [{ opacity: 0, transform: 'scale(.92)' }, { opacity: 1, transform: 'none' }]
+      : [{ opacity: 0, transform: `translateY(${n.level < 0 ? 14 : -14}px)` }, { opacity: 1, transform: 'none' }],
+    { duration: 450, delay: ring(n) * 140, easing: EASE, fill: 'backwards' });
+  }
+  return box;
+}
+
+const CHIP = { done: '✓ Done', current: 'Now', registered: 'Registered', planned: 'Planned', missing: 'Missing' };
+function courseCard(n, isRoot) {
+  const it = n.it || stub(n.code), s = it.status;
+  return h('button', {
+    type: 'button', class: `tcard ${s}${isRoot ? ' root' : ''}${A.critical.includes(it.key) ? ' crit' : ''}`, style: `--c:${color(it.group)}`,
+    onclick: isRoot ? null : () => detail(it, true), 'aria-label': `${it.code || ''} ${it.title}`,
+  }, h('span', { class: 'top' }, h('span', { class: 'code' }, it.code || 'Choose'), h('span', { class: 'chip ' + s }, CHIP[s] || s)),
+  h('span', { class: 'title' }, s === 'missing' ? 'Not on your record or plan' : it.title),
+  h('span', { class: 'meta' }, s === 'missing' ? 'Check with your advisor' : [it.credits && `${it.credits} cr`, it.transfer ? 'Transfer' : it.termLabel].filter(Boolean).join(' · ')));
+}
+function orCard(n) {
+  return h('div', { class: 'tcard or' }, h('span', { class: 'top' }, h('span', { class: 'code' }, 'One of')),
+    h('span', { class: 'alts' }, n.options.slice(0, 6).map(o => {
+      const it = o.it || stub(o.code);
+      return h('button', { type: 'button', class: `alt ${it.status}${o.code === n.pick ? ' pick' : ''}`, style: `--c:${color(it.group)}`, title: `${o.code} · ${CHIP[it.status]}`, onclick: () => detail(it, true) }, o.code);
+    }), n.options.length > 6 && h('small', {}, `+${n.options.length - 6}`)));
 }
 
 // ---------- wiring ----------
 
 $('#detail').addEventListener('click', e => e.target === e.currentTarget && e.currentTarget.close());
+$('#detail').addEventListener('close', () => view === 'web' && trail.at(-1)?.key && spinToKey(trail.at(-1).key));
 $('#bm').addEventListener('click', e => { e.preventDefault(); toast('Drag this button to your bookmarks bar, then click it on your Degree Works page.'); });
 $('#file').addEventListener('change', e => e.target.files[0] && importFile(e.target.files[0]));
 addEventListener('dragover', e => e.preventDefault());
@@ -506,7 +683,7 @@ $('#reset').addEventListener('click', () => {
 
 const pane = $('#board');
 pane.addEventListener('pointerdown', e => {
-  if (e.pointerType !== 'mouse' || e.button || e.target.closest('.card, .cap')) return;
+  if (e.pointerType !== 'mouse' || e.button || e.target.closest('.card, .cap, .web, .webctl')) return;
   const x = e.clientX, left = pane.scrollLeft;
   pane.setPointerCapture(e.pointerId);
   pane.classList.add('grabbing');
