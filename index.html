@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Flow-works: your degree as a flowchart</title>
-<meta name="description" content="Turn your Degree Works audit into an animated, semester-by-semester flowchart. Open source; runs entirely in your browser.">
+<meta name="description" content="Turn your Degree Works audit into an top-to-bottom prerequisite flowchart. Open source; runs entirely in your browser.">
 <meta property="og:title" content="Flow-works">
 <meta property="og:description" content="Your Degree Works audit, as an animated flowchart.">
 <meta property="og:image" content="docs/overview.jpg">
@@ -47,7 +47,7 @@
     <div class="copy">
       <p class="eyebrow">Open source · for Degree Works students</p>
       <h1>Your degree,<br><em>as a flowchart.</em></h1>
-      <p class="lede">Flow-works turns your Degree Works audit into an animated, semester-by-semester map of what you've finished, what you're taking now, and a plan for everything left, with prerequisites drawn in.</p>
+      <p class="lede">Flow-works turns your Degree Works audit into a top-to-bottom map of what you've finished, what you're taking now, and what comes next. Select any course to see its prerequisites and what it unlocks.</p>
       <ol class="steps">
         <li><a id="bm" class="bm" href="#" title="Drag me to your bookmarks bar"><svg><use href="#logo"/></svg>Flow-works</a><span><b>Drag this button</b> to your bookmarks bar.</span></li>
         <li><span><b>Open your Degree Works worksheet</b> and sign in as usual.</span></li>
@@ -112,23 +112,21 @@
     </div>
     <ul id="legend" class="legend" aria-label="Requirement groups"></ul>
   </section>
-  <section id="insights" class="insights" aria-label="Prerequisite insights" hidden></section>
   <div class="hint">
-    <div class="views" role="radiogroup" aria-label="View">
-      <label><input type="radio" name="view" value="roadmap"><span>Roadmap</span></label>
-      <label><input type="radio" name="view" value="web"><span>Web</span></label>
-      <label><input type="radio" name="view" value="timeline"><span>Timeline</span></label>
-      <label><input type="radio" name="view" value="graph"><span>Prerequisites</span></label>
-    </div>
+    <h2>Degree flowchart</h2>
     <span id="viewnote" class="viewnote"></span>
-    <span class="keys"><i class="k done"></i>Completed <i class="k current"></i>In progress <i class="k planned"></i>Planned <i class="k neck"></i>Bottleneck <i class="k crit"></i>Critical path</span>
+    <span class="keys"><span><i class="k done"></i>Completed</span><span><i class="k current"></i>In progress</span><span><i class="k planned"></i>Planned</span><span><i class="k crit"></i>Critical path</span></span>
   </div>
-  <section id="board" class="board" aria-label="Degree flowchart"><div id="track" class="track"></div></section>
+  <section id="board" class="board" aria-label="Degree flowchart" tabindex="0"><div id="track" class="track"></div></section>
+  <section id="requirements" class="requirements" aria-label="Other courses and graduation"></section>
+  <details class="plan-insights">
+    <summary>Plan insights &amp; prerequisites to check</summary>
+    <section id="insights" class="insights" aria-label="Prerequisite insights" hidden></section>
+  </details>
   <p class="fine">Planned terms are suggestions built from your remaining requirements and known prerequisites. They don't account for when courses are offered, so confirm with your advisor before registering.</p>
 </main>
 
-<template id="cap-icon"><svg viewBox="0 0 24 24"><path d="M12 3 1 8.5 12 14l9-4.5V16h2V8.5L12 3Z"/><path d="M5.5 11.8V16c0 1.9 2.9 3.5 6.5 3.5s6.5-1.6 6.5-3.5v-4.2L12 15.1l-6.5-3.3Z"/></svg></template>
-<dialog id="detail"></dialog>
+<dialog id="detail" aria-labelledby="course-title"></dialog>
 <div id="toast" role="status" aria-live="polite"></div>
 </body>
 </html>

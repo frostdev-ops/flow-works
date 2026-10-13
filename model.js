@@ -264,81 +264,16 @@ export function route(cols, edges) {
   return { cols: out, paths };
 }
 
-// Roadmap (vertical) layout: rows run top → bottom (everything completed folded into one compact row, then the current
-// term and each planned term) and columns are requirement-group lanes. Prerequisite lines still ahead run orthogonally
-// through the channels between lanes and the gutters between rows, each on its own track, so they never cross a card;
-// a link straight down a lane into the next row becomes a plain drop. Channel c sits left of lane c (L+1 channels).
-export function roadmap(cols, edges, groups) {
-  const past = cols.filter(c => c.kind === 'transfer' || c.kind === 'past');
-  const rows = past.length ? [{ kind: 'done', label: 'Completed', terms: past.map(c => c.label), items: past.flatMap(c => c.items) }] : [];
-  for (const c of cols) if (c.kind === 'current' || c.kind === 'future') rows.push({ kind: c.kind, label: c.label, items: c.items });
-  const lanes = groups.filter(g => rows.some(r => r.items.some(it => it.group === g)));
-  const laneOf = Object.fromEntries(lanes.map((g, i) => [g, i])), rowOf = {}, group = {}, last = rows.length - 1;
-  rows.forEach((r, ri) => r.items.forEach(it => { rowOf[it.key] = ri; group[it.key] = it.group; }));
-  const live = edges.filter(e => rowOf[e.from] != null && rowOf[e.to] != null && rows[rowOf[e.from]].kind !== 'done');
-  if (rows[last] && rows[last].kind !== 'done') for (const it of rows[last].items) live.push({ from: it.key, to: 'grad' });
-
-  // Inside a cell, courses fed from straight above go first and courses feeding straight below go last.
-  const down = e => e.to !== 'grad' && group[e.from] === group[e.to] && rowOf[e.to] === rowOf[e.from] + 1;
-  const gets = new Set(live.filter(down).map(e => e.to)), sends = new Set(live.filter(down).map(e => e.from));
-  const cells = rows.map(r => lanes.map(g => r.items.filter(it => it.group === g)
-    .sort((a, b) => gets.has(b.key) - gets.has(a.key) || sends.has(a.key) - sends.has(b.key))));
-  const at = {};
-  cells.forEach((row, r) => row.forEach((cell, l) => cell.forEach((it, s) => (at[it.key] = { r, l, s, n: cell.length }))));
-
-  // Vertical position in "row units": a course sits inside its row, a gutter sits just below it.
-  const y = p => p.r + 0.1 + (0.7 * (p.s + 0.5)) / p.n;
-  const vseg = Array.from({ length: lanes.length + 1 }, () => []), hseg = rows.map(() => []);
-  const fit = (list, lo, hi) => {
-    let t = 0;
-    while (list.some(o => o.t === t && lo < o.hi + 0.02 && o.lo < hi + 0.02)) t++;
-    list.push({ lo, hi, t });
-    return t;
-  };
-  const span = e => (e.to === 'grad' ? last + 1 : rowOf[e.to]) - rowOf[e.from] + Math.abs((laneOf[group[e.to]] ?? 0) - laneOf[group[e.from]]) / 10;
-  const routes = [...live].sort((p, q) => span(p) - span(q)).map(e => {
-    const a = at[e.from];
-    if (e.to === 'grad') {
-      const c = a.l + (a.l + 0.5 < lanes.length / 2 ? 1 : 0);
-      return { ...e, x1: c, t1: fit(vseg[c], y(a), last + 0.95) };
-    }
-    const b = at[e.to];
-    if (a.l === b.l && b.r === a.r + 1 && a.s === a.n - 1 && b.s === 0) return { ...e, drop: true };
-    const x1 = b.l < a.l ? a.l : a.l + 1, x2 = b.l > a.l ? b.l : b.l + 1;
-    if (x1 === x2) return { ...e, x1, x2, t1: fit(vseg[x1], y(a), y(b)) };
-    const g = a.r + 0.9;
-    return { ...e, x1, x2, hop: a.r, t1: fit(vseg[x1], y(a), g), th: fit(hseg[a.r], Math.min(x1, x2), Math.max(x1, x2)), t2: fit(vseg[x2], g, y(b)) };
-  });
-  const count = list => (list.length ? Math.max(...list.map(o => o.t)) + 1 : 0);
-  return { rows, lanes, cells, at, routes, tracksV: vseg.map(count), tracksH: hseg.map(count), segs: { vseg, hseg } };
-}
-
-// Spider-web layout: courses sit on one ring with terms running clockwise from 12 o'clock; graduation is the hub.
-// Each prereq link drops from its course toward the hub, runs clockwise on its own concentric lane, then climbs back
-// out to the course it unlocks, so lines never pass under a course. Shorter links take the outer lanes.
-export function web(cols, edges, { slot = 34, hub = 86 } = {}) {
-  const angle = {}, terms = [];
-  let s = 0;
-  for (const c of cols) {
-    const w = c.kind === 'transfer' ? 0.7 : 1, start = s;
-    for (const it of c.items) { angle[it.key] = s + w / 2; s += w; }
-    terms.push({ label: c.label, kind: c.kind, start, end: s });
-    s += 1;
-  }
-  const total = Math.max(s, 1), toA = x => -Math.PI / 2 + (x / total) * 2 * Math.PI;
-  for (const k in angle) angle[k] = toA(angle[k]);
-  for (const t of terms) Object.assign(t, { a0: toA(t.start), a1: toA(t.end), spoke: toA(t.start - 0.5) });
-  const R = Math.max(230, (total * slot) / (2 * Math.PI)), outer = R - 32, rows = [], lane = [];
-  edges.map((e, i) => ({ i, a: angle[e.from], b: angle[e.to] })).filter(x => x.a != null && x.b != null)
-    .sort((x, y) => x.b - x.a - (y.b - y.a))
-    .forEach(x => {
-      let k = 0;
-      while ((rows[k] ||= []).some(([a, b]) => x.a < b + 0.03 && a < x.b + 0.03)) k++;
-      rows[k].push([x.a, x.b]);
-      lane[x.i] = k;
-    });
-  const step = Math.min(8, (outer - hub - 12) / Math.max(1, rows.length));
-  return { R, hub, angle, terms, lane: edges.map((_, i) => (lane[i] == null ? null : outer - lane[i] * step)) };
+// Use the modal's vertical card layout for the whole graph, with empty slots for long links.
+export function degreeTree(a) {
+  const r = route(layers(a), a.edges), width = Math.max(0, ...r.cols.map(c => c.length));
+  const nodes = r.cols.flatMap((c, level) => c.map((it, i) => ({
+    key: it.key, kind: it.via ? 'via' : 'course', it: it.via ? null : it,
+    level, x: i + (width - c.length) / 2,
+  })));
+  const byKey = Object.fromEntries(nodes.map(n => [n.key, n]));
+  const links = r.paths.flatMap((path, i) => path.slice(1).map((key, j) => [byKey[path[j]], byKey[key], a.edges[i]]));
+  return { nodes, links };
 }
 
 // A course's prerequisite tree (rows above) and what it unlocks (rows below), for the course modal. Shared courses
