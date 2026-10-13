@@ -32,6 +32,15 @@
       }
      },
      {
+      "label": "World Language",
+      "ruleType": "Block",
+      "requirement": {
+       "numBlocks": "1",
+       "type": "OTHER",
+       "value": "LANG"
+      }
+     },
+     {
       "label": "Major Requirements",
       "ruleType": "Blocktype",
       "requirement": {
@@ -44,10 +53,10 @@
      "qualifierArray": [
       {
        "name": "CLASSESCREDITS",
-       "label": "128 Minimum Credit Requirement",
-       "credits": "128",
+       "label": "132 Minimum Credit Requirement",
+       "credits": "132",
        "applied": "75",
-       "needed": "53"
+       "needed": "57"
       }
      ]
     }
@@ -121,15 +130,6 @@
       }
      },
      {
-      "label": "Global Perspectives",
-      "ruleType": "Block",
-      "requirement": {
-       "numBlocks": "1",
-       "type": "OTHER",
-       "value": "GLOB"
-      }
-     },
-     {
       "label": "Social Sciences",
       "ruleType": "Course",
       "percentComplete": "100",
@@ -168,30 +168,88 @@
       }
      },
      {
-      "label": "Natural Science",
-      "ruleType": "Course",
-      "percentComplete": "100",
+      "label": "Lab Science Sequence",
+      "ruleType": "Group",
+      "percentComplete": "50",
       "requirement": {
-       "classesBegin": "1",
-       "courseArray": [
-        {
-         "discipline": "BIO",
-         "number": "1300"
-        }
-       ]
+       "numberOfGroups": "1",
+       "numberOfRules": "2"
       },
-      "classesAppliedToRule": {
-       "classArray": [
-        {
-         "id": "0006",
-         "discipline": "BIO",
-         "number": "1300",
-         "credits": "4",
-         "letterGrade": "B",
-         "term": "202440"
+      "ruleArray": [
+       {
+        "label": "Biology sequence",
+        "ruleType": "Course",
+        "percentComplete": "50",
+        "requirement": {
+         "classesBegin": "1",
+         "courseArray": [
+          {
+           "discipline": "BIO",
+           "number": "1310"
+          }
+         ]
+        },
+        "advice": {
+         "classes": "1",
+         "courseArray": [
+          {
+           "discipline": "BIO",
+           "number": "1310",
+           "title": "GENERAL BIOLOGY II",
+           "credits": "4",
+           "prerequisiteExists": "Y"
+          }
+         ]
+        },
+        "classesAppliedToRule": {
+         "classArray": [
+          {
+           "id": "0006",
+           "discipline": "BIO",
+           "number": "1300",
+           "credits": "4",
+           "letterGrade": "B",
+           "term": "202440"
+          }
+         ]
         }
-       ]
-      }
+       },
+       {
+        "label": "Chemistry sequence",
+        "ruleType": "Course",
+        "percentComplete": "0",
+        "requirement": {
+         "classesBegin": "2",
+         "courseArray": [
+          {
+           "discipline": "CHEM",
+           "number": "1100"
+          },
+          {
+           "discipline": "CHEM",
+           "number": "1110"
+          }
+         ]
+        },
+        "advice": {
+         "classes": "2",
+         "courseArray": [
+          {
+           "discipline": "CHEM",
+           "number": "1100",
+           "title": "GENERAL CHEMISTRY I",
+           "credits": "4"
+          },
+          {
+           "discipline": "CHEM",
+           "number": "1110",
+           "title": "GENERAL CHEMISTRY II",
+           "credits": "4"
+          }
+         ]
+        }
+       }
+      ]
      },
      {
       "label": "Diversity & Equity",
@@ -257,31 +315,161 @@
    },
    {
     "requirementType": "OTHER",
-    "requirementValue": "GLOB",
-    "title": "Area: Global Perspectives",
+    "requirementValue": "LANG",
+    "title": "World Language",
     "percentComplete": "0",
     "catalogYearLit": "2024-2025",
     "ruleArray": [
      {
-      "label": "Select 1 Course",
-      "ruleType": "Course",
+      "label": "Two semesters of one language",
+      "ruleType": "Group",
       "percentComplete": "0",
       "requirement": {
-       "classesBegin": "1"
+       "numberOfGroups": "1",
+       "numberOfRules": "4"
       },
-      "classesAppliedToRule": {
-       "classArray": []
-      },
-      "advice": {
-       "classes": "1",
-       "courseArray": [
-        {
-         "discipline": "@",
-         "number": "@",
-         "withAdvice": "ATTRIBUTE = GLB"
+      "ruleArray": [
+       {
+        "label": "Spanish",
+        "ruleType": "Course",
+        "percentComplete": "0",
+        "requirement": {
+         "classesBegin": "2",
+         "courseArray": [
+          {
+           "discipline": "SPAN",
+           "number": "1100"
+          },
+          {
+           "discipline": "SPAN",
+           "number": "1110"
+          }
+         ]
+        },
+        "advice": {
+         "classes": "2",
+         "courseArray": [
+          {
+           "discipline": "SPAN",
+           "number": "1100",
+           "title": "ELEMENTARY SPANISH I",
+           "credits": "3"
+          },
+          {
+           "discipline": "SPAN",
+           "number": "1110",
+           "title": "ELEMENTARY SPANISH II",
+           "credits": "3"
+          }
+         ]
         }
-       ]
-      }
+       },
+       {
+        "label": "French",
+        "ruleType": "Course",
+        "percentComplete": "0",
+        "requirement": {
+         "classesBegin": "2",
+         "courseArray": [
+          {
+           "discipline": "FREN",
+           "number": "1100"
+          },
+          {
+           "discipline": "FREN",
+           "number": "1110"
+          }
+         ]
+        },
+        "advice": {
+         "classes": "2",
+         "courseArray": [
+          {
+           "discipline": "FREN",
+           "number": "1100",
+           "title": "ELEMENTARY FRENCH I",
+           "credits": "3"
+          },
+          {
+           "discipline": "FREN",
+           "number": "1110",
+           "title": "ELEMENTARY FRENCH II",
+           "credits": "3"
+          }
+         ]
+        }
+       },
+       {
+        "label": "Italian",
+        "ruleType": "Course",
+        "percentComplete": "0",
+        "requirement": {
+         "classesBegin": "2",
+         "courseArray": [
+          {
+           "discipline": "ITAL",
+           "number": "1100"
+          },
+          {
+           "discipline": "ITAL",
+           "number": "1110"
+          }
+         ]
+        },
+        "advice": {
+         "classes": "2",
+         "courseArray": [
+          {
+           "discipline": "ITAL",
+           "number": "1100",
+           "title": "ELEMENTARY ITALIAN I",
+           "credits": "3"
+          },
+          {
+           "discipline": "ITAL",
+           "number": "1110",
+           "title": "ELEMENTARY ITALIAN II",
+           "credits": "3"
+          }
+         ]
+        }
+       },
+       {
+        "label": "Chinese",
+        "ruleType": "Course",
+        "percentComplete": "0",
+        "requirement": {
+         "classesBegin": "2",
+         "courseArray": [
+          {
+           "discipline": "CHIN",
+           "number": "1100"
+          },
+          {
+           "discipline": "CHIN",
+           "number": "1110"
+          }
+         ]
+        },
+        "advice": {
+         "classes": "2",
+         "courseArray": [
+          {
+           "discipline": "CHIN",
+           "number": "1100",
+           "title": "ELEMENTARY CHINESE I",
+           "credits": "3"
+          },
+          {
+           "discipline": "CHIN",
+           "number": "1110",
+           "title": "ELEMENTARY CHINESE II",
+           "credits": "3"
+          }
+         ]
+        }
+       }
+      ]
      }
     ]
    },
@@ -803,14 +991,14 @@
       ]
      },
      {
-      "label": "CS Electives: choose 9 credits",
+      "label": "CS Electives: choose 6 credits",
       "ruleType": "Course",
       "percentComplete": "0",
       "requirement": {
-       "creditsBegin": "9"
+       "creditsBegin": "6"
       },
       "advice": {
-       "credits": "9",
+       "credits": "6",
        "courseArray": [
         {
          "discipline": "CS",
@@ -1269,6 +1457,48 @@
     "A",
     "CS",
     "3500"
+   ]
+  ],
+  "BIO 1310": [
+   [
+    "",
+    "BIO",
+    "1300"
+   ]
+  ],
+  "CHEM 1110": [
+   [
+    "",
+    "CHEM",
+    "1100"
+   ]
+  ],
+  "SPAN 1110": [
+   [
+    "",
+    "SPAN",
+    "1100"
+   ]
+  ],
+  "FREN 1110": [
+   [
+    "",
+    "FREN",
+    "1100"
+   ]
+  ],
+  "ITAL 1110": [
+   [
+    "",
+    "ITAL",
+    "1100"
+   ]
+  ],
+  "CHIN 1110": [
+   [
+    "",
+    "CHIN",
+    "1100"
    ]
   ],
   "MATH 3100": [

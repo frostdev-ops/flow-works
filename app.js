@@ -1,4 +1,4 @@
-import { parseAudit, columns, analyze, layers, route } from './model.js';
+import { parseAudit, columns, analyze, layers, route, web } from './model.js';
 
 const $ = s => document.querySelector(s);
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -24,7 +24,8 @@ const svg = (tag, attrs = {}) => {
 };
 
 let model, A, edges = [], drawn = '', maxCredits = +store.get('flowworks:credits') || 15;
-let view = store.get('flowworks:view') === 'graph' ? 'graph' : 'timeline';
+const VIEWS = ['web', 'timeline', 'graph'];
+let view = VIEWS.includes(store.get('flowworks:layout')) ? store.get('flowworks:layout') : 'web';
 const color = g => {
   const i = model.groups.findIndex(x => x.id === g);
   return g === 'free' || i < 0 ? 'var(--gfree)' : `var(--g${i % 8})`;
@@ -172,12 +173,15 @@ function card(it, col, crit) {
 }
 
 function board(first) {
-  const track = $('#track');
+  const track = $('#track'), switched = track.dataset.view !== view;
+  track.dataset.view = view;
   const old = new Map([...track.querySelectorAll('[data-key]')].map(el => [el.dataset.key, el.getBoundingClientRect()]));
   const terms = columns(model, maxCredits);
   A = analyze(terms);
   const grad = stats(terms);
   insights();
+  if (view === 'web') return webView(first || switched, terms, grad);
+  track.classList.remove('web');
 
   const graph = view === 'graph';
   const cols = graph
@@ -269,6 +273,130 @@ function drawEdges(delay) {
     }
     return p;
   }));
+}
+
+// ---------- web view ----------
+
+const CAP = ['M12 3 1 8.5 12 14l9-4.5V16h2V8.5L12 3Z', 'M5.5 11.8V16c0 1.9 2.9 3.5 6.5 3.5s6.5-1.6 6.5-3.5v-4.2L12 15.1l-6.5-3.3Z'];
+const short = (s, n = 20) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s);
+const P = (r, t) => [+(r * Math.cos(t)).toFixed(1), +(r * Math.sin(t)).toFixed(1)];
+
+function webView(intro, terms, grad) {
+  const track = $('#track');
+  const gi = Object.fromEntries(model.groups.map((g, i) => [g.id, i]));
+  const cols = terms.map(c => ({ ...c, items: [...c.items].sort((a, b) => gi[a.group] - gi[b.group] || (a.code || a.title).localeCompare(b.code || b.title)) }));
+  const W = web(cols, A.edges), { R, hub } = W, RB = R + 150, S = R + 196;
+  const crit = new Set(A.critical), critLinks = new Set(A.critical.slice(1).map((k, i) => A.critical[i] + '>' + k));
+  const size = it => (it.status === 'done' ? 6 : 6.5 + Math.min(A.info[it.key]?.unlocks || 0, 6) * 1.3);
+  const old = new Map([...track.querySelectorAll('.wnode')].map(g => [g.dataset.key, g.pos]));
+  $('#viewnote').textContent = 'Your terms run clockwise from the top; graduation is the hub. Hover a course to trace its prerequisites · click for details';
+
+  const root = svg('svg', { class: 'web', viewBox: `${-S - 80} ${-S} ${2 * S + 160} ${2 * S}`, role: 'group', 'aria-label': 'Degree web' });
+  const defs = svg('defs'), lg = svg('linearGradient', { id: 'wg', x1: 0, y1: 0, x2: 1, y2: 1 });
+  [['0', 'g0'], ['.55', 'g3'], ['1', 'g2']].forEach(([offset, g]) => lg.append(svg('stop', { offset, style: `stop-color:var(--${g})` })));
+  defs.append(lg);
+
+  // The web itself: concentric threads, and a spoke at every term boundary.
+  const threads = svg('g', { class: 'threads' });
+  for (let k = 0; k <= 4; k++) threads.append(svg('circle', { r: hub + ((R - hub) * k) / 4, pathLength: 100 }));
+  for (const t of W.terms) {
+    const [x1, y1] = P(hub, t.spoke), [x2, y2] = P(RB, t.spoke);
+    threads.append(svg('line', { x1, y1, x2, y2, pathLength: 100 }));
+  }
+
+  const band = svg('g', { class: 'band' });
+  for (const t of W.terms) {
+    const mid = (t.a0 + t.a1) / 2, c = Math.cos(mid), s = Math.sin(mid), [x, y] = P(RB + 16, mid);
+    band.append(svg('path', { class: t.kind, pathLength: 100, d: `M${P(RB, t.a0)} A${RB},${RB} 0 ${t.a1 - t.a0 > Math.PI ? 1 : 0} 1 ${P(RB, t.a1)}` }));
+    const label = svg('text', { class: 'tlabel ' + t.kind, x, y, 'text-anchor': c > 0.25 ? 'start' : c < -0.25 ? 'end' : 'middle', 'dominant-baseline': s > 0.25 ? 'hanging' : s < -0.25 ? 'auto' : 'central' });
+    label.textContent = t.label || '—';
+    band.append(label);
+  }
+
+  edges = A.edges.map((e, i) => ({
+    ...e, lane: W.lane[i], group: A.byKey[e.to].group,
+    cls: [A.byKey[e.to].status === 'planned' && 'planned', critLinks.has(e.from + '>' + e.to) && 'crit'].filter(Boolean).join(' '),
+  }));
+  for (const it of cols.at(-1)?.items || []) edges.push({ from: it.key, to: 'grad', group: it.group, cls: 'tograd' });
+  const lines = svg('g', { class: 'wlines' });
+  for (const e of edges) {
+    const a = W.angle[e.from], ra = R - size(A.byKey[e.from]) - 3;
+    let d;
+    if (e.to === 'grad') d = `M${P(ra, a)} L${P(hub, a)}`;
+    else {
+      // Drop toward the hub on the course's own spoke, run clockwise on this link's lane, climb out to the target.
+      const b = W.angle[e.to], rb = R - size(A.byKey[e.to]) - 3, r = e.lane;
+      const f = Math.max(0, Math.min(12, (r * (b - a)) / 3, ra - r));
+      d = `M${P(ra, a)} L${P(r + f, a)} Q${P(r, a)} ${P(r, a + f / r)} A${r},${r} 0 ${b - a - (2 * f) / r > Math.PI ? 1 : 0} 1 ${P(r, b - f / r)} Q${P(r, b)} ${P(r + f, b)} L${P(rb, b)}`;
+    }
+    const p = svg('path', { d, class: e.cls, style: `--c:${color(e.group)}` });
+    p.dataset.from = e.from;
+    p.dataset.to = e.to;
+    lines.append(p);
+  }
+
+  const nodes = svg('g', { class: 'wnodes' }), placed = [];
+  for (const c of cols) for (const it of c.items) {
+    const t = W.angle[it.key], [x, y] = P(R, t), r = size(it), right = Math.cos(t) >= -1e-9, info = A.info[it.key];
+    const hot = info && (info.unlocks >= 2 || (crit.has(it.key) && info.unlocks > 0));
+    const g = svg('g', {
+      class: `wnode ${it.status}${it.options ? ' choice' : ''}${hot ? ' neck' : ''}${crit.has(it.key) ? ' crit' : ''}`,
+      'data-key': it.key, transform: `translate(${x},${y})`, tabindex: 0, role: 'button', style: `--c:${color(it.group)}`,
+      'aria-label': [it.code, it.title, STATUS[it.status], info?.unlocks && `unlocks ${info.unlocks}`].filter(Boolean).join(', '),
+    });
+    g.pos = [x, y];
+    const inner = svg('g', { class: 'pop' }), tip = svg('title'), label = svg('text', {
+      class: 'lbl', x: right ? r + 7 : -(r + 7), transform: `rotate(${(t * 180) / Math.PI + (right ? 0 : 180)})`,
+      'text-anchor': right ? 'start' : 'end', 'dominant-baseline': 'central',
+    });
+    const code = svg('tspan', { class: 'c' }), name = svg('tspan', { class: 't', dx: 5 });
+    code.textContent = it.code || 'Choose';
+    name.textContent = short(it.title);
+    tip.textContent = [it.code, it.title, `${it.credits} cr`, STATUS[it.status]].filter(Boolean).join(' · ');
+    label.append(code, name);
+    inner.append(tip, svg('circle', { class: 'halo', r: r + 5 }), svg('circle', { class: 'dot', r }), label);
+    g.append(inner);
+    g.addEventListener('mouseenter', () => focusOn(it.key));
+    g.addEventListener('mouseleave', () => focusOn(null));
+    g.addEventListener('focus', () => focusOn(it.key));
+    g.addEventListener('blur', () => focusOn(null));
+    g.addEventListener('click', () => detail(it));
+    g.addEventListener('keydown', e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), detail(it)));
+    nodes.append(g);
+    placed.push({ g, inner, t, x, y });
+  }
+
+  const medal = svg('g', { class: 'hubmedal', 'data-key': 'grad' }), cap = svg('g', { class: 'capicon', transform: 'translate(-17.4 -42) scale(1.45)' });
+  CAP.forEach(d => cap.append(svg('path', { d })));
+  const t1 = svg('text', { y: 12, class: 'm1' }), t2 = svg('text', { y: 31, class: 'm2' });
+  t1.textContent = 'Graduate';
+  t2.textContent = grad;
+  medal.append(svg('circle', { class: 'halo', r: hub - 4 }), svg('circle', { class: 'disc', r: hub - 14 }), cap, t1, t2);
+
+  root.append(defs, threads, band, lines, nodes, medal);
+  track.classList.add('web');
+  track.replaceChildren(root);
+  drawn = '';
+  if (reduce) return;
+
+  const n = placed.length, wave = 300 + n * 22;
+  if (intro) {
+    threads.querySelectorAll('circle, line').forEach((el, i) => el.animate([{ strokeDasharray: 100, strokeDashoffset: 100 }, { strokeDasharray: 100, strokeDashoffset: 0 }], { duration: 1200, delay: i * 35, easing: 'ease-out', fill: 'backwards' }));
+    band.querySelectorAll('path').forEach((el, i) => el.animate([{ strokeDasharray: 100, strokeDashoffset: 100 }, { strokeDasharray: 100, strokeDashoffset: 0 }], { duration: 700, delay: 300 + (wave - 300) * (i / W.terms.length), easing: EASE, fill: 'backwards' }));
+    placed.forEach(({ inner, t }, i) => inner.animate([{ opacity: 0, transform: `translate(${-Math.cos(t) * 30}px,${-Math.sin(t) * 30}px)` }, { opacity: 1, transform: 'none' }], { duration: 650, delay: 300 + i * 22, easing: EASE, fill: 'backwards' }));
+    lines.querySelectorAll('path').forEach((p, i) => {
+      const len = p.getTotalLength();
+      p.animate([{ strokeDasharray: len, strokeDashoffset: len }, { strokeDasharray: len, strokeDashoffset: 0 }], { duration: 1000, delay: wave + i * 16, easing: 'ease-out', fill: 'backwards' });
+    });
+    medal.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 600, delay: wave + 200, fill: 'backwards' });
+    medal.querySelector('.disc').animate([{ transform: 'scale(.3)' }, { transform: 'none' }], { duration: 1000, delay: wave + 200, easing: 'cubic-bezier(.3,1.6,.5,1)', fill: 'backwards' });
+  } else {
+    for (const { g, inner, x, y } of placed) {
+      const o = old.get(g.dataset.key);
+      inner.animate(o ? [{ transform: `translate(${o[0] - x}px,${o[1] - y}px)` }, { transform: 'none' }] : [{ opacity: 0 }, { opacity: 1 }], { duration: 750, easing: EASE, fill: 'backwards' });
+    }
+    lines.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 400, delay: 550, fill: 'backwards' });
+  }
 }
 
 // ---------- insights: critical path, bottlenecks, missing prereqs ----------
@@ -366,7 +494,7 @@ document.querySelectorAll('[name=view]').forEach(r => {
   r.checked = r.value === view;
   r.addEventListener('change', () => {
     view = r.value;
-    store.set('flowworks:view', view);
+    store.set('flowworks:layout', view);
     board(false);
   });
 });

@@ -74,18 +74,21 @@ export function parseAudit(audit, prereqRows = {}) {
   });
 
   const remaining = [], have = new Set(courses.map(c => c.code));
-  for (const b of blocks) if (b !== degree) walk(b.ruleArray, (r, up) => {
+  const generic = l => !l || /^(select|choose)\b/i.test(l);
+  const code = c => c.discipline + ' ' + c.number;
+  const adviceOf = r => [...(r.advice?.courseArray || []), ...(r.ruleArray || []).flatMap(adviceOf)];
+
+  function course(r, up, b) {
     const opts = r.advice?.courseArray;
     if (r.ruleType !== 'Course' || !opts?.length) return;
     const classes = +r.advice.classes || 0, credits = +r.advice.credits || 0;
     const base = { group: groupOf[bkey(b)], block: b.title, status: 'planned' };
     if (!credits && opts.length <= Math.max(classes, 1) && !opts.some(wild)) {
       for (const c of opts) {
-        const code = c.discipline + ' ' + c.number;
-        if (have.has(code)) continue;
-        have.add(code);
-        remaining.push({ ...base, key: 'p' + code, code, title: opts.length === 1 && r.label ? r.label : titleCase(c.title) || code,
-          credits: +c.credits || 3, prereqs: pre(code), level: level(c.number) });
+        if (have.has(code(c))) continue;
+        have.add(code(c));
+        remaining.push({ ...base, key: 'p' + code(c), code: code(c), title: opts.length === 1 && r.label ? r.label : titleCase(c.title) || code(c),
+          credits: +c.credits || 3, prereqs: pre(code(c)), level: level(c.number) });
       }
       return;
     }
@@ -93,10 +96,40 @@ export function parseAudit(audit, prereqRows = {}) {
     const known = opts.filter(c => +c.credits);
     const each = credits ? Math.round(credits / n * 10) / 10 : known.length ? Math.round(sum(known, c => +c.credits) / known.length) : 3;
     const lv = Math.min(...opts.map(c => c.number === '@' ? 1 : level(c.number)));
-    const title = !r.label || /^(select|choose)\b/i.test(r.label) ? (up?.label && titleCase(up.label)) || b.title : r.label;
+    const title = generic(r.label) ? (up?.label && titleCase(up.label)) || b.title : r.label;
     for (let i = 0; i < n; i++)
-      remaining.push({ ...base, key: `r${bkey(b)}:${r.ruleId}:${i}`, title, credits: each, options: opts.map(describe), prereqs: [], level: lv });
-  });
+      remaining.push({ ...base, key: `r${bkey(b)}:${r.ruleId ?? r.label}:${i}`, title, credits: each, options: opts.map(describe), prereqs: [], level: lv });
+  }
+
+  // "N groups from (A) or (B) or ...": plan an option the student already started; otherwise hold the place
+  // with choice slots listing every option, instead of planning all of them (e.g. every world language).
+  function group(r, up, b) {
+    const q = r.requirement || {};
+    const subs = (r.ruleArray || []).map((x, i) => ({ x, i, p: +x.percentComplete || 0, adv: adviceOf(x) }));
+    let need = +(q.numberOfGroups ?? q.numGroups ?? 1) - subs.filter(s => s.p >= 100).length;
+    const open = subs.filter(s => s.p < 100 && s.adv.length).sort((m, n) => n.p - m.p || m.i - n.i);
+    for (const s of open.filter(s => s.p > 0)) if (need > 0) { visit([s.x], r, b); need--; }
+    const fresh = open.filter(s => !s.p).map(s => ({ ...s, adv: [...s.adv].sort((c, d) => c.number.localeCompare(d.number)) }));
+    if (need <= 0 || !fresh.length) return;
+    const n = Math.min(...fresh.map(s => s.adv.length)), all = fresh.flatMap(s => s.adv);
+    const credits = Math.round(sum(all, c => +c.credits || 3) / all.length);
+    const chained = fresh.some(s => s.adv.slice(1).some((c, k) => pre(code(c)).some(g => g.includes(code(s.adv[k])))));
+    const title = generic(r.label) ? (up?.label && titleCase(up.label)) || b.title : r.label;
+    const options = fresh.map(s => (s.x.label ? titleCase(s.x.label) + ': ' : '') + s.adv.map(c => (wild(c) ? describe(c) : code(c))).join(' + '));
+    for (let g = 0; g < need; g++) for (let k = 0; k < n; k++) {
+      const key = i => `g${bkey(b)}:${r.ruleId ?? r.label}:${g}:${i}`;
+      remaining.push({ group: groupOf[bkey(b)], block: b.title, status: 'planned', key: key(k), title: n > 1 ? `${title} (${k + 1} of ${n})` : title,
+        credits, options, prereqs: [], level: Math.min(...fresh.map(s => level(s.adv[k].number))), after: chained && k ? key(k - 1) : undefined });
+    }
+  }
+
+  function visit(rules, up, b) {
+    for (const r of rules || []) {
+      if (r.ruleType === 'Group') group(r, up, b);
+      else { course(r, up, b); visit(r.ruleArray, r, b); }
+    }
+  }
+  for (const b of blocks) if (b !== degree) visit(b.ruleArray, undefined, b);
 
   const q = (degree.header?.qualifierArray || []).find(x => x.name === 'CLASSESCREDITS');
   const total = +q?.credits || 120, applied = +q?.applied || sum(courses, c => c.credits);
@@ -131,9 +164,12 @@ export function nextTerm(label, today = new Date()) {
 export function plan(model, maxCredits = 15) {
   const done = new Set(model.courses.map(c => c.code));
   const kids = {}, depth = new Map();
-  for (const it of model.remaining) for (const g of it.prereqs) for (const c of g) (kids[c] ||= []).push(it);
+  for (const it of model.remaining) {
+    for (const g of it.prereqs) for (const c of g) (kids[c] ||= []).push(it);
+    if (it.after) (kids[it.after] ||= []).push(it);
+  }
   const d = it => {
-    if (!depth.has(it)) { depth.set(it, 0); depth.set(it, 1 + Math.max(0, ...(kids[it.code] || []).map(d))); }
+    if (!depth.has(it)) { depth.set(it, 0); depth.set(it, 1 + Math.max(0, ...[...(kids[it.code] || []), ...(kids[it.key] || [])].map(d))); }
     return depth.get(it);
   };
   const todo = [...model.remaining].sort((a, b) => d(b) - d(a) || a.level - b.level || !!a.options - !!b.options || (a.code || '').localeCompare(b.code || ''));
@@ -143,12 +179,12 @@ export function plan(model, maxCredits = 15) {
     label = nextTerm(label);
     const term = { label, items: [], credits: 0 };
     for (const it of [...todo]) {
-      const ready = it.prereqs.every(g => g.some(c => done.has(c)) || !g.some(c => pending.has(c)));
+      const ready = it.prereqs.every(g => g.some(c => done.has(c)) || !g.some(c => pending.has(c))) && (!it.after || done.has(it.after));
       if (!ready || term.credits + it.credits > maxCredits) continue;
       term.items.push(it); term.credits += it.credits; todo.splice(todo.indexOf(it), 1);
     }
     if (!term.items.length) { const it = todo.shift(); term.items.push(it); term.credits += it.credits; } // prereq cycle or oversized course
-    for (const it of term.items) if (it.code) { done.add(it.code); pending.delete(it.code); }
+    for (const it of term.items) { done.add(it.key); if (it.code) { done.add(it.code); pending.delete(it.code); } }
     terms.push(term);
   }
   return terms;
@@ -169,7 +205,9 @@ export function columns(model, maxCredits = 15) {
 export function analyze(cols) {
   const at = {}, edges = [], needs = {}, missing = [], down = {}, byKey = {};
   const placed = cols.flatMap((c, ci) => c.items.map(it => ({ it, ci })));
-  for (const { it, ci } of placed) { byKey[it.key] = it; if (it.code) (at[it.code] ||= []).push({ key: it.key, ci }); }
+  const ciOf = {};
+  for (const { it, ci } of placed) { byKey[it.key] = it; ciOf[it.key] = ci; if (it.code) (at[it.code] ||= []).push({ key: it.key, ci }); }
+  for (const { it, ci } of placed) if (it.after && ciOf[it.after] < ci) { edges.push({ from: it.after, to: it.key }); (down[it.after] ||= []).push(it.key); }
   for (const { it, ci } of placed) needs[it.key] = (it.prereqs || []).map(g => {
     const from = g.flatMap(code => at[code] || []).filter(x => x.ci < ci).sort((a, b) => b.ci - a.ci)[0];
     if (from) { edges.push({ from: from.key, to: it.key }); (down[from.key] ||= []).push(it.key); return { codes: g, state: 'met' }; }
@@ -223,4 +261,32 @@ export function route(cols, edges) {
     for (const c of pass % 2 ? [...out].reverse() : out) { c.sort((x, y) => bary(x.key, nb) - bary(y.key, nb)); place(c); }
   }
   return { cols: out, paths };
+}
+
+// Spider-web layout: courses sit on one ring with terms running clockwise from 12 o'clock; graduation is the hub.
+// Each prereq link drops from its course toward the hub, runs clockwise on its own concentric lane, then climbs back
+// out to the course it unlocks, so lines never pass under a course. Shorter links take the outer lanes.
+export function web(cols, edges, { slot = 34, hub = 86 } = {}) {
+  const angle = {}, terms = [];
+  let s = 0;
+  for (const c of cols) {
+    const w = c.kind === 'transfer' ? 0.7 : 1, start = s;
+    for (const it of c.items) { angle[it.key] = s + w / 2; s += w; }
+    terms.push({ label: c.label, kind: c.kind, start, end: s });
+    s += 1;
+  }
+  const total = Math.max(s, 1), toA = x => -Math.PI / 2 + (x / total) * 2 * Math.PI;
+  for (const k in angle) angle[k] = toA(angle[k]);
+  for (const t of terms) Object.assign(t, { a0: toA(t.start), a1: toA(t.end), spoke: toA(t.start - 0.5) });
+  const R = Math.max(230, (total * slot) / (2 * Math.PI)), outer = R - 32, rows = [], lane = [];
+  edges.map((e, i) => ({ i, a: angle[e.from], b: angle[e.to] })).filter(x => x.a != null && x.b != null)
+    .sort((x, y) => x.b - x.a - (y.b - y.a))
+    .forEach(x => {
+      let k = 0;
+      while ((rows[k] ||= []).some(([a, b]) => x.a < b + 0.03 && a < x.b + 0.03)) k++;
+      rows[k].push([x.a, x.b]);
+      lane[x.i] = k;
+    });
+  const step = Math.min(8, (outer - hub - 12) / Math.max(1, rows.length));
+  return { R, hub, angle, terms, lane: edges.map((_, i) => (lane[i] == null ? null : outer - lane[i] * step)) };
 }

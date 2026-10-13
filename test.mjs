@@ -1,7 +1,7 @@
 // node test.mjs — sanity check of the parser + planner against demo.json.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseAudit, columns, analyze, layers, route, prereqGroups, nextTerm, titleCase } from './model.js';
+import { parseAudit, columns, analyze, layers, route, web, prereqGroups, nextTerm, titleCase } from './model.js';
 
 assert.deepEqual(prereqGroups([['', 'CS', '2300'], ['A', 'MATH', '1160'], ['O', 'MATH', '1350'], ['O', '', '']]), [['CS 2300'], ['MATH 1160', 'MATH 1350']]);
 assert.equal(nextTerm('Fall 2026'), 'Spring 2027');
@@ -11,7 +11,13 @@ assert.equal(titleCase('OBJECT-ORIENTED PROG IN JAVA II'), 'Object-Oriented Prog
 const { audit, prereqs } = JSON.parse(readFileSync(new URL('./demo.json', import.meta.url)));
 const m = parseAudit(audit, prereqs);
 assert.equal(m.student, 'Alex');
-assert.deepEqual(m.groups.map(g => g.title), ['General Education Core', 'Mathematics & Science', 'B.S. Computer Science', 'Free electives']);
+assert.deepEqual(m.groups.map(g => g.title), ['General Education Core', 'World Language', 'Mathematics & Science', 'B.S. Computer Science', 'Free electives']);
+// "1 group from (A) or (B)": a started option is planned concretely, the others are ignored...
+assert.ok(m.remaining.some(x => x.code === 'BIO 1310') && !m.remaining.some(x => /^CHEM/.test(x.code)), 'started option wins');
+// ...and with nothing started, choice slots stand in for the options instead of planning every language.
+const lang = m.remaining.filter(x => x.group === 'OTHER:LANG');
+assert.equal(lang.length, 2, 'two slots, not every language');
+assert.ok(lang.every(x => !x.code && x.options.length === 4) && lang[1].after === lang[0].key, 'chained choice slots');
 assert.equal(m.courses.find(c => c.code === 'PHIL 1100').group, 'OTHER:CORE', 'sub-block rolls up to its parent group');
 assert.equal(m.courses.find(c => c.code === 'ART 1100').group, 'free');
 
@@ -23,6 +29,9 @@ for (const max of [12, 15, 18]) {
   for (const c of planned) assert.ok(c.credits <= max, `${c.label} over ${max} credits`);
   const termOf = {};
   cols.forEach((c, i) => c.items.forEach(it => it.code && (termOf[it.code] = i)));
+  const keyTerm = {};
+  cols.forEach((c, i) => c.items.forEach(it => (keyTerm[it.key] = i)));
+  for (const it of m.remaining) if (it.after) assert.ok(keyTerm[it.after] < keyTerm[it.key], 'chained slot after its predecessor');
   cols.forEach((c, i) => c.items.filter(it => it.status === 'planned').forEach(it =>
     it.prereqs.filter(g => g.some(code => code in termOf)).forEach(g =>
       assert.ok(g.some(code => termOf[code] < i), `${it.code} scheduled before ${g}`))));
@@ -37,7 +46,7 @@ assert.ok(a.edges.every(e => a.byKey[e.from] && a.byKey[e.to]));
 const lay = layers(a), level = {};
 lay.forEach((c, i) => c.forEach(it => (level[it.key] = i)));
 assert.ok(a.edges.every(e => level[e.from] < level[e.to]), 'every prereq sits in an earlier layer');
-assert.deepEqual(lay[0].map(x => x.code).sort(), ['CS 1100', 'MATH 1500'], 'roots');
+assert.deepEqual(lay[0].map(x => x.code || 'slot').sort(), ['BIO 1300', 'CS 1100', 'MATH 1500', 'slot'], 'roots');
 for (const cols of [columns(m, 15).map(c => c.items), lay]) {
   const r = route(cols, a.edges.filter(e => cols.some(c => c.some(x => x.key === e.from)) && cols.some(c => c.some(x => x.key === e.to))));
   const colOf = {};
@@ -45,4 +54,16 @@ for (const cols of [columns(m, 15).map(c => c.items), lay]) {
   for (const p of r.paths) p.forEach((k, i) => i && assert.equal(colOf[k], colOf[p[i - 1]] + 1, 'paths step one column at a time'));
   assert.equal(r.cols.flat().filter(x => !x.via).length, cols.flat().length, 'routing keeps every card');
 }
+const W = web(columns(m, 15), a.edges);
+const angles = columns(m, 15).flatMap(c => c.items).map(it => W.angle[it.key]);
+assert.ok(angles.every((t, i) => !i || t > angles[i - 1]), 'terms run clockwise');
+a.edges.forEach((e, i) => {
+  assert.ok(W.angle[e.to] > W.angle[e.from], 'links run clockwise');
+  assert.ok(W.lane[i] > W.hub && W.lane[i] < W.R, 'lane between hub and ring');
+  a.edges.forEach((f, j) => {
+    if (j <= i || W.lane[j] !== W.lane[i]) return;
+    const [p, q] = [[W.angle[e.from], W.angle[e.to]], [W.angle[f.from], W.angle[f.to]]];
+    assert.ok(p[1] < q[0] || q[1] < p[0], 'links sharing a lane never overlap');
+  });
+});
 console.log('ok');
