@@ -117,6 +117,12 @@
     <span id="viewnote" class="viewnote"></span>
     <span class="keys"><span><i class="k done"></i>Completed</span><span><i class="k current"></i>In progress</span><span><i class="k planned"></i>Planned</span><span><i class="k crit"></i>Critical path</span></span>
   </div>
+  <div id="chart-controls" class="chart-controls" role="group" aria-label="Flowchart layout">
+    <label for="layout-width">Columns <input id="layout-width" type="range" min="2" max="10" step="1" value="4"><output id="layout-width-out" for="layout-width">4</output></label>
+    <label for="layout-spacing">Spacing <input id="layout-spacing" type="range" min="20" max="80" step="4" value="32"><output id="layout-spacing-out" for="layout-spacing">32</output></label>
+    <label for="chart-zoom">Zoom <input id="chart-zoom" type="range" min="10" max="150" step="5" value="100"><output id="chart-zoom-out" for="chart-zoom">100%</output></label>
+    <button id="fit-chart" class="btn ghost" type="button">Fit width</button>
+  </div>
   <section id="board" class="board" aria-label="Degree flowchart" tabindex="0"><div id="track" class="track"></div></section>
   <section id="requirements" class="requirements" aria-label="Other courses and graduation"></section>
   <details class="plan-insights">

@@ -228,52 +228,50 @@ export function analyze(cols) {
   return { edges, needs, missing, info, necks, critical: critical.length > 1 ? critical : [], byKey };
 }
 
-// Prerequisite view columns: column = longest prereq chain above a course. Courses with no links are left out.
-export function layers(a) {
-  const up = {}, lv = {}, cols = [], linked = new Set();
-  for (const e of a.edges) { (up[e.to] ||= []).push(e.from); linked.add(e.from).add(e.to); }
-  const L = k => (lv[k] ??= up[k] ? 1 + Math.max(...up[k].map(L)) : 0);
-  for (const k of Object.keys(a.byKey)) if (linked.has(k)) (cols[L(k)] ||= []).push(a.byKey[k]);
-  return cols;
-}
-
-// Edge routing: a link that spans several columns gets a "via" slot in every column it crosses, so lines
-// run through gaps between cards instead of under them. Cards and slots are then ordered by barycenter
-// sweeps to cut crossings. Returns per-column entries (items or { key, via: true }) and each edge's key path.
-export function route(cols, edges) {
-  const at = {}, out = cols.map(c => [...c]), up = {}, down = {}, pos = {};
-  cols.forEach((c, ci) => c.forEach(it => (at[it.key] = ci)));
-  const paths = edges.map((e, ei) => {
-    const path = [e.from];
-    for (let ci = at[e.from] + 1; ci < at[e.to]; ci++) {
-      const key = `via${ei}:${ci}`;
-      out[ci].push({ key, via: true });
-      path.push(key);
-    }
-    path.push(e.to);
-    for (let i = 1; i < path.length; i++) { (up[path[i]] ||= []).push(path[i - 1]); (down[path[i - 1]] ||= []).push(path[i]); }
-    return path;
-  });
-  const place = c => c.forEach((x, i) => (pos[x.key] = i));
-  const bary = (k, nb) => (nb[k] ? nb[k].reduce((s, n) => s + pos[n], 0) / nb[k].length : pos[k]);
-  out.forEach(place);
-  for (let pass = 0; pass < 6; pass++) {
-    const nb = pass % 2 ? down : up;
-    for (const c of pass % 2 ? [...out].reverse() : out) { c.sort((x, y) => bary(x.key, nb) - bary(y.key, nb)); place(c); }
+// Continue ready branches in nearby columns; capacity can stagger courses with the same prerequisite depth.
+export function degreeTree(a, width = 4) {
+  width = Math.max(2, Math.min(10, Math.round(width) || 4));
+  const up = {}, neighbors = {};
+  for (const e of a.edges) {
+    (up[e.to] ||= []).push(e.from);
+    (neighbors[e.from] ||= []).push(e.to); (neighbors[e.to] ||= []).push(e.from);
   }
-  return { cols: out, paths };
-}
-
-// Use the modal's vertical card layout for the whole graph, with empty slots for long links.
-export function degreeTree(a) {
-  const r = route(layers(a), a.edges), width = Math.max(0, ...r.cols.map(c => c.length));
-  const nodes = r.cols.flatMap((c, level) => c.map((it, i) => ({
-    key: it.key, kind: it.via ? 'via' : 'course', it: it.via ? null : it,
-    level, x: i + (width - c.length) / 2,
-  })));
-  const byKey = Object.fromEntries(nodes.map(n => [n.key, n]));
-  const links = r.paths.flatMap((path, i) => path.slice(1).map((key, j) => [byKey[path[j]], byKey[key], a.edges[i]]));
-  return { nodes, links };
+  const unseen = new Set(Object.keys(a.byKey).filter(k => neighbors[k])), parts = [];
+  while (unseen.size) {
+    const part = [unseen.values().next().value]; unseen.delete(part[0]);
+    for (let i = 0; i < part.length; i++) for (const key of neighbors[part[i]])
+      if (unseen.delete(key)) part.push(key);
+    parts.push(part);
+  }
+  const nodes = [], byKey = {}, bottom = Array(width).fill(0);
+  for (const keys of parts.sort((p, q) => q.length - p.length)) {
+    const todo = new Set(keys), part = [];
+    for (let level = 0; todo.size; level++) {
+      const latestParent = k => Math.max(-1, ...(up[k] || []).map(p => byKey[p].level));
+      const ready = [...todo].filter(k => (up[k] || []).every(p => byKey[p]))
+        .sort((p, q) => latestParent(q) - latestParent(p)).slice(0, width);
+      if (!ready.length) throw new Error('Prerequisite links contain a cycle.');
+      const free = Array.from({ length: width }, (_, i) => i);
+      for (const key of ready) {
+        const parents = (up[key] || []).map(k => byKey[k]);
+        const target = parents.length ? parents.reduce((sum, n) => sum + n.x, 0) / parents.length : free[0];
+        const x = free.reduce((best, col) => Math.abs(col - target) < Math.abs(best - target) ? col : best);
+        free.splice(free.indexOf(x), 1);
+        const n = { key, kind: 'course', it: a.byKey[key], level, x };
+        part.push(n); byKey[key] = n; todo.delete(key);
+      }
+    }
+    // Pack independent chains as blocks instead of stretching them to match unrelated branches.
+    const span = Math.max(...part.map(n => n.x)) + 1, height = Math.max(...part.map(n => n.level)) + 1;
+    let left = 0, top = Infinity;
+    for (let x = 0; x <= width - span; x++) {
+      const y = Math.max(...bottom.slice(x, x + span));
+      if (y < top) { left = x; top = y; }
+    }
+    for (const n of part) { n.x += left; n.level += top; nodes.push(n); }
+    bottom.fill(top + height, left, left + span);
+  }
+  return { nodes, links: a.edges.map(e => [byKey[e.from], byKey[e.to], e]) };
 }
 
 // A course's prerequisite tree (rows above) and what it unlocks (rows below), for the course modal. Shared courses

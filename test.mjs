@@ -1,7 +1,7 @@
 // node test.mjs — sanity check of the parser + planner against demo.json.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseAudit, columns, analyze, layers, route, degreeTree, courseTree, prereqGroups, nextTerm, titleCase } from './model.js';
+import { parseAudit, columns, analyze, degreeTree, courseTree, prereqGroups, nextTerm, titleCase } from './model.js';
 
 assert.deepEqual(prereqGroups([['', 'CS', '2300'], ['A', 'MATH', '1160'], ['O', 'MATH', '1350'], ['O', '', '']]), [['CS 2300'], ['MATH 1160', 'MATH 1350']]);
 assert.equal(nextTerm('Fall 2026'), 'Spring 2027');
@@ -43,35 +43,48 @@ assert.equal(a.necks[0].unlocks, 3);
 assert.deepEqual(a.critical.map(code).slice(1), ['CS 3500', 'CS 4900'], 'critical path ends at capstone');
 assert.deepEqual(a.missing.map(x => [code(x.key), x.needs]), [['CS 3600', ['MATH 2400', 'MATH 2600']]]);
 assert.ok(a.edges.every(e => a.byKey[e.from] && a.byKey[e.to]));
-const lay = layers(a), level = {};
-lay.forEach((c, i) => c.forEach(it => (level[it.key] = i)));
-assert.ok(a.edges.every(e => level[e.from] < level[e.to]), 'every prereq sits in an earlier layer');
-assert.deepEqual(lay[0].map(x => x.code || 'slot').sort(), ['BIO 1300', 'CS 1100', 'MATH 1500', 'slot'], 'roots');
-for (const cols of [columns(m, 15).map(c => c.items), lay]) {
-  const r = route(cols, a.edges.filter(e => cols.some(c => c.some(x => x.key === e.from)) && cols.some(c => c.some(x => x.key === e.to))));
-  const colOf = {};
-  r.cols.forEach((c, i) => c.forEach(x => (colOf[x.key] = i)));
-  for (const p of r.paths) p.forEach((k, i) => i && assert.equal(colOf[k], colOf[p[i - 1]] + 1, 'paths step one column at a time'));
-  assert.equal(r.cols.flat().filter(x => !x.via).length, cols.flat().length, 'routing keeps every card');
+// A large degree with many parallel branches, long links and a shared capstone.
+const wide = { byKey: { root: { key: 'root' }, end: { key: 'end' } }, edges: [] };
+for (let i = 0; i < 60; i++) {
+  const first = `a${i}`, second = `b${i}`;
+  wide.byKey[first] = { key: first }; wide.byKey[second] = { key: second };
+  wide.edges.push({ from: 'root', to: first }, { from: first, to: second }, { from: second, to: 'end' });
 }
-const D = degreeTree(a);
-const linkedKeys = new Set(a.edges.flatMap(e => [e.from, e.to]));
-assert.deepEqual(new Set(D.nodes.filter(n => n.it).map(n => n.it.key)), linkedKeys, 'every linked course is shown');
-assert.equal(D.nodes.filter(n => n.it).length, linkedKeys.size, 'shared prerequisites appear only once');
-assert.ok(D.links.every(([p, c]) => c.level === p.level + 1), 'degree connections stay between adjacent rows');
-assert.ok(D.nodes.some(n => n.kind === 'via'), 'long connections get an empty slot');
-for (const lv of new Set(D.nodes.map(n => n.level))) {
-  const xs = D.nodes.filter(n => n.level === lv).map(n => n.x).sort((p, q) => p - q);
-  assert.ok(xs.every((x, i) => !i || x - xs[i - 1] >= 1), 'degree cards and routing slots do not overlap');
+wide.edges.push({ from: 'root', to: 'end' });
+wide.byKey = Object.fromEntries(Object.entries(wide.byKey).sort(([p], [q]) => p.localeCompare(q)));
+for (const graph of [a, wide]) for (const width of [2, 4, 6, 10]) {
+  const D = degreeTree(graph, width), keys = new Set(graph.edges.flatMap(e => [e.from, e.to]));
+  assert.deepEqual(new Set(D.nodes.map(n => n.key)), keys, 'every linked course is shown once');
+  assert.equal(D.nodes.length, keys.size, 'no duplicate courses or card-sized routing slots');
+  assert.ok(D.nodes.every(n => n.x >= 0 && n.x < width), 'layout respects the column limit');
+  assert.equal(new Set(D.nodes.map(n => `${n.x}:${n.level}`)).size, keys.size, 'cards never overlap');
+  assert.equal(D.links.length, graph.edges.length, 'every prerequisite link is preserved');
+  D.links.forEach(([from, to, edge], i) => {
+    assert.equal(edge, graph.edges[i]);
+    assert.equal(from.key, edge.from); assert.equal(to.key, edge.to);
+    assert.ok(from.level < to.level, 'prerequisites always appear above dependents');
+  });
 }
-for (const e of a.edges) {
-  const steps = D.links.filter(([, , edge]) => edge === e);
-  assert.equal(steps[0][0].key, e.from);
-  assert.equal(steps.at(-1)[1].key, e.to);
-  steps.slice(1).forEach(([from], i) => assert.equal(from, steps[i][1], 'long links are continuous'));
+const narrow = degreeTree(wide, 4), broad = degreeTree(wide, 10);
+assert.ok(new Set(narrow.nodes.filter(n => n.key.startsWith('a')).map(n => n.level)).size > 1, 'siblings can stagger onto different rows');
+assert.ok(Math.max(...narrow.nodes.map(n => n.level)) > Math.max(...broad.nodes.map(n => n.level)), 'narrower layouts use more rows');
+assert.ok(narrow.links.filter(([, , e]) => e.from.startsWith('a')).every(([p, c]) => p.x === c.x), 'simple branches stay in the same column');
+const slotFirstKey = m.remaining.find(x => x.after).after;
+const compact = degreeTree(a, 4);
+assert.ok(compact.links.filter(([p]) => p.it.code === 'BIO 1300' || p.it.key === slotFirstKey).every(([p, c]) => c.level === p.level + 1), 'independent short chains stay together');
+const independent = { byKey: {}, edges: [] };
+for (let i = 0; i < 24; i++) {
+  independent.byKey[`p${i}`] = { key: `p${i}` }; independent.byKey[`q${i}`] = { key: `q${i}` };
+  independent.edges.push({ from: `p${i}`, to: `q${i}` });
 }
+const packed = degreeTree(independent, 4);
+assert.equal(new Set(packed.nodes.map(n => `${n.x}:${n.level}`)).size, 48, 'packed chains do not overlap');
+assert.ok(packed.links.every(([p, c]) => p.x === c.x && c.level === p.level + 1), 'every independent chain stays adjacent');
+assert.equal(Math.max(...packed.nodes.map(n => n.level)), 11, 'short chains fill four columns compactly');
 assert.deepEqual(degreeTree({ edges: [], byKey: {} }), { nodes: [], links: [] }, 'empty audit has no graph');
 assert.deepEqual(degreeTree({ edges: [], byKey: { only: { key: 'only' } } }).nodes, [], 'unlinked courses belong in the course list');
+assert.ok(degreeTree(a, NaN).nodes.every(n => n.x < 4), 'invalid width falls back to four columns');
+assert.throws(() => degreeTree({ byKey: { a: { key: 'a' }, b: { key: 'b' } }, edges: [{ from: 'a', to: 'b' }, { from: 'b', to: 'a' }] }), /cycle/);
 const cs4900 = Object.values(a.byKey).find(x => x.code === 'CS 4900');
 const T = courseTree(cs4900, a, m.prereqs);
 assert.ok(T.links.every(([p, c]) => c.level - p.level === 1), 'tree links join adjacent rows');

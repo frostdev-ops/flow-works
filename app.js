@@ -145,13 +145,14 @@ function board() {
   const terms = columns(model, maxCredits).map(c => ({ ...c, items: c.items.map(it => ({ ...it, termLabel: c.label })) }));
   A = analyze(terms);
   edges = A.edges;
-  const grad = stats(terms), T = degreeTree(A), linked = new Set(T.nodes.filter(n => n.it).map(n => n.it.key));
+  const grad = stats(terms), T = degreeTree(A, +$('#layout-width').value), linked = new Set(T.nodes.map(n => n.it.key));
   insights();
   $('#viewnote').textContent = T.nodes.length
-    ? 'Prerequisites flow down. Select a course to focus on its chain. Drag or scroll sideways to explore.'
+    ? 'Prerequisites flow down; rows are not terms. Adjust the layout, or select a course to focus on its chain.'
     : 'No prerequisite links were included in this audit. All your courses and requirements are listed below.';
   $('#track').replaceChildren(...(T.nodes.length ? [tree(T)] : []));
-  $('#board').hidden = !T.nodes.length;
+  $('#board').hidden = $('#chart-controls').hidden = !T.nodes.length;
+  zoomChart();
   const other = terms.map(c => ({ ...c, items: c.items.filter(it => !linked.has(it.key)) })).filter(c => c.items.length);
   $('#requirements').replaceChildren(
     ...(other.length ? [h('header', {}, h('h2', {}, T.nodes.length ? 'Other courses & requirements' : 'Courses & requirements'),
@@ -259,21 +260,27 @@ function detail(it, keep) {
 function tree(T, rootIt) {
   const xs = T.nodes.map(n => n.x), lv = T.nodes.map(n => n.level);
   const minX = Math.min(...xs), minL = Math.min(...lv);
-  const Wd = (Math.max(...xs) - minX + 1) * (TW + TGX) - TGX, Ht = (Math.max(...lv) - minL + 1) * (TH + TGY) - TGY;
-  const at = n => [(n.x - minX) * (TW + TGX), (n.level - minL) * (TH + TGY)];
+  const gx = rootIt ? TGX : +$('#layout-spacing').value, gy = rootIt ? TGY : gx + 20, pad = rootIt ? 0 : gx / 2 + 4;
+  const Wd = (Math.max(...xs) - minX + 1) * (TW + gx) - gx + pad * 2, Ht = (Math.max(...lv) - minL + 1) * (TH + gy) - gy;
+  const at = n => [(n.x - minX) * (TW + gx) + pad, (n.level - minL) * (TH + gy)];
   const box = h('div', { class: 'tree', style: `width:${Wd}px;height:${Ht}px` });
   const lines = svg('svg', { class: 'tree-lines', width: Wd, height: Ht, 'aria-hidden': 'true' });
   const state = n => n.kind === 'or' ? (n.options.find(o => o.code === n.pick)?.it?.status || 'missing') : n.it?.status || 'missing';
   const ring = n => Math.abs(n.level);
   const critLinks = new Set(A.critical.slice(1).map((k, i) => A.critical[i] + '>' + k));
   T.links.forEach(([up, down, edge]) => {
-    // Links only join adjacent rows, so each curve lives in the gap between two rows and never crosses a card.
     const [x1, y1] = at(up), [x2, y2] = at(down), ax = x1 + TW / 2, ay = y1 + TH, bx = x2 + TW / 2, m = (ay + y2) / 2;
+    let path = `M${ax},${ay} C${ax},${m} ${bx},${m} ${bx},${y2}`;
+    if (down.level - up.level > 1) {
+      // Long connections travel in the gutters between fixed columns, without reserving card-sized gaps.
+      const lane = bx < ax ? x1 - gx / 2 : x1 + TW + gx / 2, out = ay + gy / 2, into = y2 - gy / 2;
+      path = `M${ax},${ay} C${ax},${out} ${lane},${ay} ${lane},${out} L${lane},${into} C${lane},${y2} ${bx},${into} ${bx},${y2}`;
+    }
     const from = edge?.from || up.it?.key, to = edge?.to || down.it?.key;
     const cls = edge
       ? [A.byKey[to].status === 'planned' && 'planned', critLinks.has(from + '>' + to) && 'crit'].filter(Boolean).join(' ')
       : state(up) === 'missing' ? 'miss' : state(down) === 'planned' ? 'planned' : '';
-    const p = svg('path', { d: `M${ax},${ay} C${ax},${m} ${bx},${m} ${bx},${y2}${down.kind === 'via' ? ` L${bx},${y2 + TH}` : ''}`, class: cls,
+    const p = svg('path', { d: path, class: cls,
       'data-from': from || '', 'data-to': to || '',
       style: `--c:${color((edge ? A.byKey[from] : up.it || up.options?.find(o => o.code === up.pick)?.it || {}).group)}` });
     lines.append(p);
@@ -281,12 +288,11 @@ function tree(T, rootIt) {
       const len = p.getTotalLength();
       const k = up.level < 0 ? ring(up) : ring(down);
       p.animate([{ strokeDasharray: len, strokeDashoffset: len }, { strokeDasharray: len, strokeDashoffset: 0 }],
-        { duration: 500, delay: 80 + k * 140, easing: 'ease-out', fill: 'backwards' });
+        { duration: 500, delay: 80 + Math.min(k, 4) * 100, easing: 'ease-out', fill: 'backwards' });
     });
   });
   box.append(lines);
   for (const n of T.nodes) {
-    if (n.kind === 'via') continue;
     const [x, y] = at(n), el = n.kind === 'or' ? orCard(n) : courseCard(n, n.it === rootIt);
     el.style.left = x + 'px';
     el.style.top = y + 'px';
@@ -295,7 +301,7 @@ function tree(T, rootIt) {
     if (!reduce) el.animate(n.level === 0
       ? [{ opacity: 0, transform: 'scale(.92)' }, { opacity: 1, transform: 'none' }]
       : [{ opacity: 0, transform: `translateY(${n.level < 0 ? 14 : -14}px)` }, { opacity: 1, transform: 'none' }],
-    { duration: 450, delay: ring(n) * 140, easing: EASE, fill: 'backwards' });
+    { duration: 450, delay: Math.min(ring(n), 4) * 100, easing: EASE, fill: 'backwards' });
   }
   return box;
 }
@@ -324,6 +330,31 @@ function orCard(n) {
 }
 
 // ---------- wiring ----------
+
+function zoomChart() {
+  const percent = +$('#chart-zoom').value, chart = $('#track .tree');
+  if (chart) chart.style.zoom = percent / 100;
+  $('#chart-zoom-out').value = percent + '%';
+}
+
+for (const id of ['layout-width', 'layout-spacing', 'chart-zoom']) {
+  const input = $('#' + id);
+  input.value = store.get('flowworks:' + id) ?? input.defaultValue;
+  const update = () => {
+    $('#' + id + '-out').value = input.value + (id === 'chart-zoom' ? '%' : id === 'layout-spacing' ? ' px' : '');
+    store.set('flowworks:' + id, input.value);
+  };
+  update();
+  input.addEventListener('input', () => { update(); id === 'chart-zoom' ? zoomChart() : board(); });
+}
+$('#fit-chart').addEventListener('click', () => {
+  const chart = $('#track .tree'), pane = $('#board'), padding = getComputedStyle(pane);
+  if (!chart) return;
+  const available = pane.clientWidth - parseFloat(padding.paddingLeft) - parseFloat(padding.paddingRight);
+  $('#chart-zoom').value = Math.min(100, Math.floor(available / chart.offsetWidth * 20) * 5);
+  $('#chart-zoom').dispatchEvent(new Event('input'));
+  pane.scrollLeft = 0;
+});
 
 $('#detail').addEventListener('click', e => e.target === e.currentTarget && e.currentTarget.close());
 $('#bm').addEventListener('click', e => { e.preventDefault(); toast('Drag this button to your bookmarks bar, then click it on your Degree Works page.'); });

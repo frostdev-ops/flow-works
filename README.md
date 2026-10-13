@@ -10,7 +10,9 @@ Flow-works turns an Ellucian Degree Works audit into a top-to-bottom prerequisit
 
 ## The flowchart
 
-The whole-degree view uses the same compact cards and top-to-bottom connections as the course detail modal. Each row is a prerequisite step, and every card shows its status, credits, and completed or suggested term. Shared prerequisites appear once. Long connections pass through reserved spaces, so lines never run through a card.
+The whole-degree view uses the same compact cards and top-to-bottom connections as the course detail modal. Branches continue downward in nearby columns, and courses at the same prerequisite depth can stagger onto different rows. Rows are not terms: each card shows its own status, credits, and completed or suggested term. Shared prerequisites appear once, and long connections travel between columns so they never run through a card.
+
+Use **Columns** to choose a narrower or wider layout, **Spacing** to bring cards closer together, and **Zoom** or **Fit width** to size the chart for your screen. These preferences stay in your browser.
 
 Hover or keyboard-focus a course to trace its prerequisites and what it unlocks. Click it to open a focused flowchart of its prerequisite tree and the courses that follow it; click a course in that chart to follow the chain, with breadcrumbs back.
 
