@@ -1,0 +1,1301 @@
+{
+ "v": 1,
+ "audit": {
+  "auditHeader": {
+   "studentName": "Rivera, Alex",
+   "percentComplete": "58"
+  },
+  "blockArray": [
+   {
+    "requirementType": "DEGREE",
+    "requirementValue": "BS",
+    "title": "Bachelor of Science",
+    "percentComplete": "58",
+    "catalogYearLit": "2024-2025",
+    "ruleArray": [
+     {
+      "label": "General Education Core",
+      "ruleType": "Block",
+      "requirement": {
+       "numBlocks": "1",
+       "type": "OTHER",
+       "value": "CORE"
+      }
+     },
+     {
+      "label": "Mathematics & Science",
+      "ruleType": "Block",
+      "requirement": {
+       "numBlocks": "1",
+       "type": "OTHER",
+       "value": "SUPPORT"
+      }
+     },
+     {
+      "label": "Major Requirements",
+      "ruleType": "Blocktype",
+      "requirement": {
+       "numBlocktypes": "1",
+       "type": "MAJOR"
+      }
+     }
+    ],
+    "header": {
+     "qualifierArray": [
+      {
+       "name": "CLASSESCREDITS",
+       "label": "128 Minimum Credit Requirement",
+       "credits": "128",
+       "applied": "75",
+       "needed": "53"
+      }
+     ]
+    }
+   },
+   {
+    "requirementType": "OTHER",
+    "requirementValue": "CORE",
+    "title": "General Education Core",
+    "percentComplete": "72",
+    "catalogYearLit": "2024-2025",
+    "ruleArray": [
+     {
+      "label": "Writing",
+      "ruleType": "Course",
+      "percentComplete": "100",
+      "requirement": {
+       "classesBegin": "1",
+       "courseArray": [
+        {
+         "discipline": "ENG",
+         "number": "1100"
+        }
+       ]
+      },
+      "classesAppliedToRule": {
+       "classArray": [
+        {
+         "id": "0001",
+         "discipline": "ENG",
+         "number": "1100",
+         "credits": "3",
+         "letterGrade": "TA",
+         "term": "202640"
+        }
+       ]
+      }
+     },
+     {
+      "label": "Oral Communication",
+      "ruleType": "Course",
+      "percentComplete": "100",
+      "requirement": {
+       "classesBegin": "1",
+       "courseArray": [
+        {
+         "discipline": "COMM",
+         "number": "1100"
+        }
+       ]
+      },
+      "classesAppliedToRule": {
+       "classArray": [
+        {
+         "id": "0004",
+         "discipline": "COMM",
+         "number": "1100",
+         "credits": "3",
+         "letterGrade": "A-",
+         "term": "202440"
+        }
+       ]
+      }
+     },
+     {
+      "label": "Arts & Humanities",
+      "ruleType": "Block",
+      "requirement": {
+       "numBlocks": "1",
+       "type": "OTHER",
+       "value": "HUM"
+      }
+     },
+     {
+      "label": "Global Perspectives",
+      "ruleType": "Block",
+      "requirement": {
+       "numBlocks": "1",
+       "type": "OTHER",
+       "value": "GLOB"
+      }
+     },
+     {
+      "label": "Social Sciences",
+      "ruleType": "Course",
+      "percentComplete": "100",
+      "requirement": {
+       "classesBegin": "2",
+       "courseArray": [
+        {
+         "discipline": "PSY",
+         "number": "1100"
+        },
+        {
+         "discipline": "SOC",
+         "number": "1010"
+        }
+       ]
+      },
+      "classesAppliedToRule": {
+       "classArray": [
+        {
+         "id": "0005",
+         "discipline": "PSY",
+         "number": "1100",
+         "credits": "3",
+         "letterGrade": "B+",
+         "term": "202440"
+        },
+        {
+         "id": "0009",
+         "discipline": "SOC",
+         "number": "1010",
+         "credits": "3",
+         "letterGrade": "A",
+         "term": "202520"
+        }
+       ]
+      }
+     },
+     {
+      "label": "Natural Science",
+      "ruleType": "Course",
+      "percentComplete": "100",
+      "requirement": {
+       "classesBegin": "1",
+       "courseArray": [
+        {
+         "discipline": "BIO",
+         "number": "1300"
+        }
+       ]
+      },
+      "classesAppliedToRule": {
+       "classArray": [
+        {
+         "id": "0006",
+         "discipline": "BIO",
+         "number": "1300",
+         "credits": "4",
+         "letterGrade": "B",
+         "term": "202440"
+        }
+       ]
+      }
+     },
+     {
+      "label": "Diversity & Equity",
+      "ruleType": "Course",
+      "percentComplete": "0",
+      "requirement": {
+       "classesBegin": "1"
+      },
+      "classesAppliedToRule": {
+       "classArray": []
+      },
+      "advice": {
+       "classes": "1",
+       "courseArray": [
+        {
+         "discipline": "@",
+         "number": "@",
+         "withAdvice": "ATTRIBUTE = DIV"
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "requirementType": "OTHER",
+    "requirementValue": "HUM",
+    "title": "Area: Arts & Humanities",
+    "percentComplete": "50",
+    "catalogYearLit": "2024-2025",
+    "ruleArray": [
+     {
+      "label": "Choose 2 courses",
+      "ruleType": "Course",
+      "percentComplete": "50",
+      "requirement": {
+       "classesBegin": "1"
+      },
+      "classesAppliedToRule": {
+       "classArray": [
+        {
+         "id": "0010",
+         "discipline": "PHIL",
+         "number": "1100",
+         "credits": "3",
+         "letterGrade": "A",
+         "term": "202520"
+        }
+       ]
+      },
+      "advice": {
+       "classes": "1",
+       "courseArray": [
+        {
+         "discipline": "@",
+         "number": "@",
+         "withAdvice": "ATTRIBUTE = HUM"
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "requirementType": "OTHER",
+    "requirementValue": "GLOB",
+    "title": "Area: Global Perspectives",
+    "percentComplete": "0",
+    "catalogYearLit": "2024-2025",
+    "ruleArray": [
+     {
+      "label": "Select 1 Course",
+      "ruleType": "Course",
+      "percentComplete": "0",
+      "requirement": {
+       "classesBegin": "1"
+      },
+      "classesAppliedToRule": {
+       "classArray": []
+      },
+      "advice": {
+       "classes": "1",
+       "courseArray": [
+        {
+         "discipline": "@",
+         "number": "@",
+         "withAdvice": "ATTRIBUTE = GLB"
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "requirementType": "OTHER",
+    "requirementValue": "SUPPORT",
+    "title": "Mathematics & Science",
+    "percentComplete": "55",
+    "catalogYearLit": "2024-2025",
+    "ruleArray": [
+     {
+      "label": "Calculus I",
+      "ruleType": "Course",
+      "percentComplete": "100",
+      "requirement": {
+       "classesBegin": "1",
+       "courseArray": [
+        {
+         "discipline": "MATH",
+         "number": "1500"
+        }
+       ]
+      },
+      "classesAppliedToRule": {
+       "classArray": [
+        {
+         "id": "0002",
+         "discipline": "MATH",
+         "number": "1500",
+         "credits": "4",
+         "letterGrade": "TA",
+         "term": "202640"
+        }
+       ]
+      }
+     },
+     {
+      "label": "Calculus II",
+      "ruleType": "Course",
+      "percentComplete": "100",
+      "requirement": {
+       "classesBegin": "1",
+       "courseArray": [
+        {
+         "discipline": "MATH",
+         "number": "1600"
+        }
+       ]
+      },
+      "classesAppliedToRule": {
+       "classArray": [
+        {
+         "id": "0008",
+         "discipline": "MATH",
+         "number": "1600",
+         "credits": "4",
+         "letterGrade": "B+",
+         "term": "202520"
+        }
+       ]
+      }
+     },
+     {
+      "label": "Linear Algebra",
+      "ruleType": "Course",
+      "percentComplete": "100",
+      "requirement": {
+       "classesBegin": "1",
+       "courseArray": [
+        {
+         "discipline": "MATH",
+         "number": "2300"
+        }
+       ]
+      },
+      "classesAppliedToRule": {
+       "classArray": [
+        {
+         "id": "0021",
+         "discipline": "MATH",
+         "number": "2300",
+         "credits": "3",
+         "letterGrade": "REG",
+         "term": "202640"
+        }
+       ]
+      }
+     },
+     {
+      "label": "Probability & Statistics",
+      "ruleType": "Course",
+      "percentComplete": "0",
+      "requirement": {
+       "classesBegin": "1",
+       "courseArray": [
+        {
+         "discipline": "MATH",
+         "number": "3100"
+        }
+       ]
+      },
+      "advice": {
+       "classes": "1",
+       "courseArray": [
+        {
+         "discipline": "MATH",
+         "number": "3100",
+         "title": "PROBABILITY AND STATISTICS",
+         "credits": "3",
+         "prerequisiteExists": "Y"
+        }
+       ]
+      }
+     },
+     {
+      "label": "Physics I",
+      "ruleType": "Course",
+      "percentComplete": "0",
+      "requirement": {
+       "classesBegin": "1",
+       "courseArray": [
+        {
+         "discipline": "PHYS",
+         "number": "2100"
+        }
+       ]
+      },
+      "advice": {
+       "classes": "1",
+       "courseArray": [
+        {
+         "discipline": "PHYS",
+         "number": "2100",
+         "title": "PHYSICS I: MECHANICS",
+         "credits": "4",
+         "prerequisiteExists": "Y"
+        }
+       ]
+      }
+     },
+     {
+      "label": "Physics II",
+      "ruleType": "Course",
+      "percentComplete": "0",
+      "requirement": {
+       "classesBegin": "1",
+       "courseArray": [
+        {
+         "discipline": "PHYS",
+         "number": "2200"
+        }
+       ]
+      },
+      "advice": {
+       "classes": "1",
+       "courseArray": [
+        {
+         "discipline": "PHYS",
+         "number": "2200",
+         "title": "PHYSICS II: ELECTRICITY & MAGNETISM",
+         "credits": "4",
+         "prerequisiteExists": "Y"
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "requirementType": "MAJOR",
+    "requirementValue": "CS",
+    "title": "B.S. Computer Science",
+    "percentComplete": "52",
+    "catalogYearLit": "2024-2025",
+    "ruleArray": [
+     {
+      "label": "Computer Science Core",
+      "ruleType": "Subset",
+      "percentComplete": "58",
+      "ruleArray": [
+       {
+        "label": "Computer Science I",
+        "ruleType": "Course",
+        "percentComplete": "100",
+        "requirement": {
+         "classesBegin": "1",
+         "courseArray": [
+          {
+           "discipline": "CS",
+           "number": "1100"
+          }
+         ]
+        },
+        "classesAppliedToRule": {
+         "classArray": [
+          {
+           "id": "0003",
+           "discipline": "CS",
+           "number": "1100",
+           "credits": "4",
+           "letterGrade": "A",
+           "term": "202440"
+          }
+         ]
+        }
+       },
+       {
+        "label": "Computer Science II",
+        "ruleType": "Course",
+        "percentComplete": "100",
+        "requirement": {
+         "classesBegin": "1",
+         "courseArray": [
+          {
+           "discipline": "CS",
+           "number": "1200"
+          }
+         ]
+        },
+        "classesAppliedToRule": {
+         "classArray": [
+          {
+           "id": "0007",
+           "discipline": "CS",
+           "number": "1200",
+           "credits": "4",
+           "letterGrade": "A-",
+           "term": "202520"
+          }
+         ]
+        }
+       },
+       {
+        "label": "Data Structures",
+        "ruleType": "Course",
+        "percentComplete": "100",
+        "requirement": {
+         "classesBegin": "1",
+         "courseArray": [
+          {
+           "discipline": "CS",
+           "number": "2100"
+          }
+         ]
+        },
+        "classesAppliedToRule": {
+         "classArray": [
+          {
+           "id": "0011",
+           "discipline": "CS",
+           "number": "2100",
+           "credits": "4",
+           "letterGrade": "B+",
+           "term": "202540"
+          }
+         ]
+        }
+       },
+       {
+        "label": "Computer Organization",
+        "ruleType": "Course",
+        "percentComplete": "100",
+        "requirement": {
+         "classesBegin": "1",
+         "courseArray": [
+          {
+           "discipline": "CS",
+           "number": "2200"
+          }
+         ]
+        },
+        "classesAppliedToRule": {
+         "classArray": [
+          {
+           "id": "0015",
+           "discipline": "CS",
+           "number": "2200",
+           "credits": "4",
+           "letterGrade": "B",
+           "term": "202620"
+          }
+         ]
+        }
+       },
+       {
+        "label": "Discrete Structures",
+        "ruleType": "Course",
+        "percentComplete": "100",
+        "requirement": {
+         "classesBegin": "1",
+         "courseArray": [
+          {
+           "discipline": "CS",
+           "number": "2300"
+          }
+         ]
+        },
+        "classesAppliedToRule": {
+         "classArray": [
+          {
+           "id": "0012",
+           "discipline": "CS",
+           "number": "2300",
+           "credits": "3",
+           "letterGrade": "A-",
+           "term": "202540"
+          }
+         ]
+        }
+       },
+       {
+        "label": "Algorithms",
+        "ruleType": "Course",
+        "percentComplete": "100",
+        "requirement": {
+         "classesBegin": "1",
+         "courseArray": [
+          {
+           "discipline": "CS",
+           "number": "3100"
+          }
+         ]
+        },
+        "classesAppliedToRule": {
+         "classArray": [
+          {
+           "id": "0019",
+           "discipline": "CS",
+           "number": "3100",
+           "credits": "4",
+           "letterGrade": "REG",
+           "term": "202640"
+          }
+         ]
+        }
+       },
+       {
+        "label": "Operating Systems",
+        "ruleType": "Course",
+        "percentComplete": "100",
+        "requirement": {
+         "classesBegin": "1",
+         "courseArray": [
+          {
+           "discipline": "CS",
+           "number": "3200"
+          }
+         ]
+        },
+        "classesAppliedToRule": {
+         "classArray": [
+          {
+           "id": "0020",
+           "discipline": "CS",
+           "number": "3200",
+           "credits": "4",
+           "letterGrade": "REG",
+           "term": "202640"
+          }
+         ]
+        }
+       },
+       {
+        "label": "Databases",
+        "ruleType": "Course",
+        "percentComplete": "0",
+        "requirement": {
+         "classesBegin": "1",
+         "courseArray": [
+          {
+           "discipline": "CS",
+           "number": "3300"
+          }
+         ]
+        },
+        "advice": {
+         "classes": "1",
+         "courseArray": [
+          {
+           "discipline": "CS",
+           "number": "3300",
+           "title": "DATABASE SYSTEMS",
+           "credits": "4",
+           "prerequisiteExists": "Y"
+          }
+         ]
+        }
+       },
+       {
+        "label": "Software Engineering",
+        "ruleType": "Course",
+        "percentComplete": "0",
+        "requirement": {
+         "classesBegin": "1",
+         "courseArray": [
+          {
+           "discipline": "CS",
+           "number": "3400"
+          }
+         ]
+        },
+        "advice": {
+         "classes": "1",
+         "courseArray": [
+          {
+           "discipline": "CS",
+           "number": "3400",
+           "title": "SOFTWARE ENGINEERING",
+           "credits": "4",
+           "prerequisiteExists": "Y"
+          }
+         ]
+        }
+       },
+       {
+        "label": "Computer Networks",
+        "ruleType": "Course",
+        "percentComplete": "0",
+        "requirement": {
+         "classesBegin": "1",
+         "courseArray": [
+          {
+           "discipline": "CS",
+           "number": "3500"
+          }
+         ]
+        },
+        "advice": {
+         "classes": "1",
+         "courseArray": [
+          {
+           "discipline": "CS",
+           "number": "3500",
+           "title": "COMPUTER NETWORKS",
+           "credits": "4",
+           "prerequisiteExists": "Y"
+          }
+         ]
+        }
+       },
+       {
+        "label": "Theory of Computation",
+        "ruleType": "Course",
+        "percentComplete": "0",
+        "requirement": {
+         "classesBegin": "1",
+         "courseArray": [
+          {
+           "discipline": "CS",
+           "number": "3600"
+          }
+         ]
+        },
+        "advice": {
+         "classes": "1",
+         "courseArray": [
+          {
+           "discipline": "CS",
+           "number": "3600",
+           "title": "THEORY OF COMPUTATION",
+           "credits": "3",
+           "prerequisiteExists": "Y"
+          }
+         ]
+        }
+       },
+       {
+        "label": "Human-Computer Interaction",
+        "ruleType": "Course",
+        "percentComplete": "0",
+        "requirement": {
+         "classesBegin": "1",
+         "courseArray": [
+          {
+           "discipline": "CS",
+           "number": "3700"
+          }
+         ]
+        },
+        "advice": {
+         "classes": "1",
+         "courseArray": [
+          {
+           "discipline": "CS",
+           "number": "3700",
+           "title": "HUMAN-COMPUTER INTERACTION",
+           "credits": "3",
+           "prerequisiteExists": "Y"
+          }
+         ]
+        }
+       },
+       {
+        "label": "Senior Capstone",
+        "ruleType": "Course",
+        "percentComplete": "0",
+        "requirement": {
+         "classesBegin": "1",
+         "courseArray": [
+          {
+           "discipline": "CS",
+           "number": "4900"
+          }
+         ]
+        },
+        "advice": {
+         "classes": "1",
+         "courseArray": [
+          {
+           "discipline": "CS",
+           "number": "4900",
+           "title": "SENIOR CAPSTONE PROJECT",
+           "credits": "3",
+           "prerequisiteExists": "Y"
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "label": "CS Electives: choose 9 credits",
+      "ruleType": "Course",
+      "percentComplete": "0",
+      "requirement": {
+       "creditsBegin": "9"
+      },
+      "advice": {
+       "credits": "9",
+       "courseArray": [
+        {
+         "discipline": "CS",
+         "number": "4100",
+         "title": "COMPILERS",
+         "credits": "3",
+         "prerequisiteExists": "Y"
+        },
+        {
+         "discipline": "CS",
+         "number": "4200",
+         "title": "MACHINE LEARNING",
+         "credits": "3",
+         "prerequisiteExists": "Y"
+        },
+        {
+         "discipline": "CS",
+         "number": "4300",
+         "title": "COMPUTER GRAPHICS",
+         "credits": "3",
+         "prerequisiteExists": "Y"
+        },
+        {
+         "discipline": "CS",
+         "number": "4400",
+         "title": "COMPUTER SECURITY",
+         "credits": "3",
+         "prerequisiteExists": "Y"
+        },
+        {
+         "discipline": "CS",
+         "number": "4500",
+         "title": "DISTRIBUTED SYSTEMS",
+         "credits": "3",
+         "prerequisiteExists": "Y"
+        }
+       ]
+      }
+     }
+    ]
+   }
+  ],
+  "classInformation": {
+   "classArray": [
+    {
+     "id": "0001",
+     "discipline": "ENG",
+     "number": "1100",
+     "courseTitle": "COLLEGE WRITING",
+     "credits": "3",
+     "letterGrade": "TA",
+     "term": "202640",
+     "termLiteral": "Fall 2026",
+     "inProgress": "N",
+     "preregistered": "N",
+     "transfer": "T"
+    },
+    {
+     "id": "0002",
+     "discipline": "MATH",
+     "number": "1500",
+     "courseTitle": "CALCULUS I",
+     "credits": "4",
+     "letterGrade": "TA",
+     "term": "202640",
+     "termLiteral": "Fall 2026",
+     "inProgress": "N",
+     "preregistered": "N",
+     "transfer": "T"
+    },
+    {
+     "id": "0003",
+     "discipline": "CS",
+     "number": "1100",
+     "courseTitle": "COMPUTER SCIENCE I",
+     "credits": "4",
+     "letterGrade": "A",
+     "term": "202440",
+     "termLiteral": "Fall 2024",
+     "inProgress": "N",
+     "preregistered": "N",
+     "transfer": "C"
+    },
+    {
+     "id": "0004",
+     "discipline": "COMM",
+     "number": "1100",
+     "courseTitle": "PUBLIC SPEAKING",
+     "credits": "3",
+     "letterGrade": "A-",
+     "term": "202440",
+     "termLiteral": "Fall 2024",
+     "inProgress": "N",
+     "preregistered": "N",
+     "transfer": "C"
+    },
+    {
+     "id": "0005",
+     "discipline": "PSY",
+     "number": "1100",
+     "courseTitle": "GENERAL PSYCHOLOGY",
+     "credits": "3",
+     "letterGrade": "B+",
+     "term": "202440",
+     "termLiteral": "Fall 2024",
+     "inProgress": "N",
+     "preregistered": "N",
+     "transfer": "C"
+    },
+    {
+     "id": "0006",
+     "discipline": "BIO",
+     "number": "1300",
+     "courseTitle": "GENERAL BIOLOGY",
+     "credits": "4",
+     "letterGrade": "B",
+     "term": "202440",
+     "termLiteral": "Fall 2024",
+     "inProgress": "N",
+     "preregistered": "N",
+     "transfer": "C"
+    },
+    {
+     "id": "0007",
+     "discipline": "CS",
+     "number": "1200",
+     "courseTitle": "COMPUTER SCIENCE II",
+     "credits": "4",
+     "letterGrade": "A-",
+     "term": "202520",
+     "termLiteral": "Spring 2025",
+     "inProgress": "N",
+     "preregistered": "N",
+     "transfer": "C"
+    },
+    {
+     "id": "0008",
+     "discipline": "MATH",
+     "number": "1600",
+     "courseTitle": "CALCULUS II",
+     "credits": "4",
+     "letterGrade": "B+",
+     "term": "202520",
+     "termLiteral": "Spring 2025",
+     "inProgress": "N",
+     "preregistered": "N",
+     "transfer": "C"
+    },
+    {
+     "id": "0009",
+     "discipline": "SOC",
+     "number": "1010",
+     "courseTitle": "PRINCIPLES OF SOCIOLOGY",
+     "credits": "3",
+     "letterGrade": "A",
+     "term": "202520",
+     "termLiteral": "Spring 2025",
+     "inProgress": "N",
+     "preregistered": "N",
+     "transfer": "C"
+    },
+    {
+     "id": "0010",
+     "discipline": "PHIL",
+     "number": "1100",
+     "courseTitle": "INTRODUCTION TO PHILOSOPHY",
+     "credits": "3",
+     "letterGrade": "A",
+     "term": "202520",
+     "termLiteral": "Spring 2025",
+     "inProgress": "N",
+     "preregistered": "N",
+     "transfer": "C"
+    },
+    {
+     "id": "0011",
+     "discipline": "CS",
+     "number": "2100",
+     "courseTitle": "DATA STRUCTURES",
+     "credits": "4",
+     "letterGrade": "B+",
+     "term": "202540",
+     "termLiteral": "Fall 2025",
+     "inProgress": "N",
+     "preregistered": "N",
+     "transfer": "C"
+    },
+    {
+     "id": "0012",
+     "discipline": "CS",
+     "number": "2300",
+     "courseTitle": "DISCRETE STRUCTURES",
+     "credits": "3",
+     "letterGrade": "A-",
+     "term": "202540",
+     "termLiteral": "Fall 2025",
+     "inProgress": "N",
+     "preregistered": "N",
+     "transfer": "C"
+    },
+    {
+     "id": "0013",
+     "discipline": "ART",
+     "number": "1100",
+     "courseTitle": "DRAWING I",
+     "credits": "3",
+     "letterGrade": "A",
+     "term": "202540",
+     "termLiteral": "Fall 2025",
+     "inProgress": "N",
+     "preregistered": "N",
+     "transfer": "C"
+    },
+    {
+     "id": "0014",
+     "discipline": "MUS",
+     "number": "1050",
+     "courseTitle": "MUSIC APPRECIATION",
+     "credits": "3",
+     "letterGrade": "A",
+     "term": "202540",
+     "termLiteral": "Fall 2025",
+     "inProgress": "N",
+     "preregistered": "N",
+     "transfer": "C"
+    },
+    {
+     "id": "0015",
+     "discipline": "CS",
+     "number": "2200",
+     "courseTitle": "COMPUTER ORGANIZATION",
+     "credits": "4",
+     "letterGrade": "B",
+     "term": "202620",
+     "termLiteral": "Spring 2026",
+     "inProgress": "N",
+     "preregistered": "N",
+     "transfer": "C"
+    },
+    {
+     "id": "0016",
+     "discipline": "ECON",
+     "number": "1010",
+     "courseTitle": "PRINCIPLES OF MACROECONOMICS",
+     "credits": "3",
+     "letterGrade": "B+",
+     "term": "202620",
+     "termLiteral": "Spring 2026",
+     "inProgress": "N",
+     "preregistered": "N",
+     "transfer": "C"
+    },
+    {
+     "id": "0017",
+     "discipline": "HIST",
+     "number": "1020",
+     "courseTitle": "WORLD HISTORY II",
+     "credits": "3",
+     "letterGrade": "A-",
+     "term": "202620",
+     "termLiteral": "Spring 2026",
+     "inProgress": "N",
+     "preregistered": "N",
+     "transfer": "C"
+    },
+    {
+     "id": "0018",
+     "discipline": "WRT",
+     "number": "2010",
+     "courseTitle": "TECHNICAL WRITING",
+     "credits": "3",
+     "letterGrade": "A",
+     "term": "202620",
+     "termLiteral": "Spring 2026",
+     "inProgress": "N",
+     "preregistered": "N",
+     "transfer": "C"
+    },
+    {
+     "id": "0019",
+     "discipline": "CS",
+     "number": "3100",
+     "courseTitle": "ALGORITHMS",
+     "credits": "4",
+     "letterGrade": "REG",
+     "term": "202640",
+     "termLiteral": "Fall 2026",
+     "inProgress": "Y",
+     "preregistered": "N",
+     "transfer": "C"
+    },
+    {
+     "id": "0020",
+     "discipline": "CS",
+     "number": "3200",
+     "courseTitle": "OPERATING SYSTEMS",
+     "credits": "4",
+     "letterGrade": "REG",
+     "term": "202640",
+     "termLiteral": "Fall 2026",
+     "inProgress": "Y",
+     "preregistered": "N",
+     "transfer": "C"
+    },
+    {
+     "id": "0021",
+     "discipline": "MATH",
+     "number": "2300",
+     "courseTitle": "LINEAR ALGEBRA",
+     "credits": "3",
+     "letterGrade": "REG",
+     "term": "202640",
+     "termLiteral": "Fall 2026",
+     "inProgress": "Y",
+     "preregistered": "N",
+     "transfer": "C"
+    },
+    {
+     "id": "0022",
+     "discipline": "PHIL",
+     "number": "2200",
+     "courseTitle": "ETHICS IN TECHNOLOGY",
+     "credits": "3",
+     "letterGrade": "REG",
+     "term": "202640",
+     "termLiteral": "Fall 2026",
+     "inProgress": "Y",
+     "preregistered": "N",
+     "transfer": "C"
+    }
+   ]
+  },
+  "insufficient": {
+   "classArray": []
+  }
+ },
+ "prereqs": {
+  "CS 1200": [
+   [
+    "",
+    "CS",
+    "1100"
+   ]
+  ],
+  "CS 2100": [
+   [
+    "",
+    "CS",
+    "1200"
+   ]
+  ],
+  "CS 2200": [
+   [
+    "",
+    "CS",
+    "1200"
+   ]
+  ],
+  "CS 2300": [
+   [
+    "",
+    "MATH",
+    "1500"
+   ]
+  ],
+  "MATH 1600": [
+   [
+    "",
+    "MATH",
+    "1500"
+   ]
+  ],
+  "CS 3100": [
+   [
+    "",
+    "CS",
+    "2100"
+   ],
+   [
+    "A",
+    "CS",
+    "2300"
+   ]
+  ],
+  "CS 3200": [
+   [
+    "",
+    "CS",
+    "2100"
+   ],
+   [
+    "A",
+    "CS",
+    "2200"
+   ]
+  ],
+  "MATH 2300": [
+   [
+    "",
+    "MATH",
+    "1600"
+   ]
+  ],
+  "CS 3300": [
+   [
+    "",
+    "CS",
+    "2100"
+   ]
+  ],
+  "CS 3400": [
+   [
+    "",
+    "CS",
+    "3300"
+   ]
+  ],
+  "CS 3700": [
+   [
+    "",
+    "CS",
+    "3300"
+   ]
+  ],
+  "CS 3500": [
+   [
+    "",
+    "CS",
+    "3200"
+   ]
+  ],
+  "CS 3600": [
+   [
+    "",
+    "CS",
+    "3100"
+   ],
+   [
+    "A",
+    "MATH",
+    "2400"
+   ],
+   [
+    "O",
+    "MATH",
+    "2600"
+   ]
+  ],
+  "CS 4900": [
+   [
+    "",
+    "CS",
+    "3400"
+   ],
+   [
+    "A",
+    "CS",
+    "3500"
+   ]
+  ],
+  "MATH 3100": [
+   [
+    "",
+    "MATH",
+    "2300"
+   ]
+  ],
+  "PHYS 2100": [
+   [
+    "",
+    "MATH",
+    "1500"
+   ]
+  ],
+  "PHYS 2200": [
+   [
+    "",
+    "PHYS",
+    "2100"
+   ],
+   [
+    "A",
+    "MATH",
+    "1600"
+   ]
+  ]
+ }
+}

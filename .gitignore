@@ -1,0 +1,4 @@
+.DS_Store
+# never commit a real student audit
+audit*.json
+*.audit.json
