@@ -1,4 +1,4 @@
-import { parseAudit, columns, analyze, degreeTree, courseTree, priorityColors, routePadding, treeRoutes } from './model.js';
+import { parseAudit, columns, analyze, degreeTree, courseTree, priorityColors, treeRoutes } from './model.js';
 
 const $ = s => document.querySelector(s);
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -164,10 +164,14 @@ function board() {
     let best = -1;
     for (let width = 2; width <= 16; width++) {
       const candidate = degreeTree(A, width), { width: w, height: ht } = treeSize(candidate);
-      const score = Math.min(size.width / w, size.height / ht);
+      const refs = candidate.nodes.filter(n => n.kind === 'reference').length;
+      const score = Math.min(size.width / w, size.height / ht) / (1 + refs * .15);
       if (score > best) { T = candidate; best = score; }
     }
   } else T = degreeTree(A, +$('#layout-width').value);
+  const references = T.nodes.filter(n => n.kind === 'reference').length;
+  if (references) $('#viewnote').textContent += ` ${plural(references, 'course reference')} keep connections from crossing.`;
+  pane.style.height = Math.max(240, innerHeight - (pane.getBoundingClientRect().top + scrollY) - 16) + 'px';
   insights();
   $('#track').replaceChildren(tree(T));
   fit ? fitChart() : zoomChart();
@@ -267,13 +271,13 @@ function detail(it, keep) {
 }
 
 function treeSize(T, rootIt) {
-  const xs = T.nodes.map(n => n.x), lv = T.nodes.map(n => n.level);
-  const minX = Math.min(0, ...xs), minL = Math.min(0, ...lv);
+  const lv = T.nodes.map(n => n.level);
+  const minX = Math.min(0, ...T.nodes.map(n => n.x + (1 - (n.span || 1)) / 2)), minL = Math.min(0, ...lv);
   const cw = rootIt ? TW : 176, ch = rootIt ? TH : 76;
-  const gx = rootIt ? TGX : +$('#layout-spacing').value, gy = rootIt ? TGY : gx + 12, pad = routePadding(T, gx);
+  const gx = rootIt ? TGX : +$('#layout-spacing').value, gy = rootIt ? TGY : gx + 12, pad = 16;
   const py = rootIt ? 0 : 4;
   return { cw, ch, gx, gy, pad, py, minX, minL,
-    width: (Math.max(0, ...xs) - minX + 1) * (cw + gx) - gx + pad * 2,
+    width: (Math.max(1, ...T.nodes.map(n => n.x + (1 + (n.span || 1)) / 2)) - minX) * (cw + gx) - gx + pad * 2,
     height: (Math.max(0, ...lv) - minL + 1) * (ch + gy) - gy + py * 2 };
 }
 
@@ -304,9 +308,22 @@ function tree(T, rootIt) {
   });
   box.append(lines);
   for (const n of T.nodes) {
-    const [x, y] = at(n), el = n.kind === 'or' ? orCard(n) : courseCard(n, n.it === rootIt);
+    if (n.kind === 'route') continue;
+    const [x, y] = at(n), el = n.kind === 'reference' ? h('button', {
+      type: 'button', class: 'course-ref', 'data-key': n.it.key, style: cardStyle(n.it),
+      title: `${n.it.code || n.it.title} · Reference to the same course. Select for details.`,
+      'aria-label': `Reference to ${n.it.code || n.it.title}. Open course details`, onclick: () => detail(n.it, false),
+      onmouseenter: () => focusOn(n.it.key), onmouseleave: () => focusOn(null),
+      onfocus: () => focusOn(n.it.key), onblur: () => focusOn(null),
+    }, n.it.code || short(n.it.title, 16), ' ↗') : n.kind === 'or' ? orCard(n) : courseCard(n, n.it === rootIt);
+    if (n.kind === 'reference') {
+      const width = n.span * (cw + gx) - gx;
+      el.style.width = width + 'px'; el.style.height = '30px';
+      el.style.left = x + (cw - width) / 2 + 'px'; el.style.top = y + (ch - 30) / 2 + 'px';
+    } else {
     el.style.left = x + 'px';
     el.style.top = y + 'px';
+    }
     if (n.more) el.append(h('span', { class: 'more ' + (n.level < 0 ? 'up' : 'down') }, `+${n.more} more`));
     box.append(el);
     if (!reduce) el.animate(n.level === 0

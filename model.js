@@ -254,7 +254,7 @@ export function priorityColors(count, most) {
   return { fill: `rgb(${rgb.join(' ')})`, ink: luminance > .179 ? '#000' : '#fff' };
 }
 
-// Continue ready branches in nearby columns; capacity can stagger courses with the same prerequisite depth.
+// Place cards around their connections. Thin guide slots carry long paths through intermediate rows.
 export function degreeTree(a, width = 4) {
   width = Math.max(2, Math.min(16, Math.round(width) || 4));
   const up = {}, neighbors = {};
@@ -264,128 +264,198 @@ export function degreeTree(a, width = 4) {
   }
   const unseen = new Set(Object.keys(a.byKey)), parts = [];
   while (unseen.size) {
-    const part = [unseen.values().next().value]; unseen.delete(part[0]);
-    for (let i = 0; i < part.length; i++) for (const key of neighbors[part[i]] || [])
-      if (unseen.delete(key)) part.push(key);
-    parts.push(part);
-  }
-  const nodes = [], byKey = {}, bottom = Array(width).fill(0);
-  for (const keys of parts.sort((p, q) => q.length - p.length)) {
-    const todo = new Set(keys), part = [];
+    const keys = [unseen.values().next().value]; unseen.delete(keys[0]);
+    for (let i = 0; i < keys.length; i++) for (const key of neighbors[keys[i]] || [])
+      if (unseen.delete(key)) keys.push(key);
+    const members = new Set(keys), edges = a.edges.filter(e => members.has(e.from));
+    const todo = new Set(keys), placed = new Map();
     for (let level = 0; todo.size; level++) {
-      const latestParent = k => Math.max(-1, ...(up[k] || []).map(p => byKey[p].level));
-      const ready = [...todo].filter(k => (up[k] || []).every(p => byKey[p]))
-        .sort((p, q) => latestParent(q) - latestParent(p)).slice(0, width);
+      const latest = k => Math.max(-1, ...(up[k] || []).map(p => placed.get(p).level));
+      const ready = [...todo].filter(k => (up[k] || []).every(p => placed.has(p)))
+        .sort((p, q) => latest(q) - latest(p)).slice(0, width);
       if (!ready.length) throw new Error('Prerequisite links contain a cycle.');
-      const free = Array.from({ length: width }, (_, i) => i);
-      for (const key of ready) {
-        const parents = (up[key] || []).map(k => byKey[k]);
-        const target = parents.length ? parents.reduce((sum, n) => sum + n.x, 0) / parents.length : free[0];
-        const x = free.reduce((best, col) => Math.abs(col - target) < Math.abs(best - target)
-          || (parents.length === 1 && Math.abs(col - target) === Math.abs(best - target) && col > best) ? col : best);
-        free.splice(free.indexOf(x), 1);
-        const n = { key, kind: 'course', it: a.byKey[key], level, x };
-        part.push(n); byKey[key] = n; todo.delete(key);
-      }
+      ready.forEach((key, x) => { placed.set(key, { key, kind: 'course', it: a.byKey[key], level, x, span: 1 }); todo.delete(key); });
     }
-    const roots = part.filter(n => n.level === 0).map(n => {
-      const children = part.filter(c => up[c.key]?.includes(n.key));
-      return { n, target: children.length ? (Math.min(...children.map(c => c.x)) + Math.max(...children.map(c => c.x))) / 2 : n.x };
-    }).sort((p, q) => p.target - q.target);
-    let previous = -1;
-    roots.forEach(({ n, target }, i) => { n.x = previous = Math.max(previous + 1, Math.min(target, width - roots.length + i)); });
-    // Pack independent chains as blocks instead of stretching them to match unrelated branches.
-    const span = Math.max(...part.map(n => n.x)) + 1, height = Math.max(...part.map(n => n.level)) + 1;
+    const references = new Set();
+    const attempted = new Set();
+    let drawing, trial, moves = 0;
+    for (;;) {
+      const nodes = [...placed.values()], links = [], steps = [];
+      edges.forEach((edge, id) => {
+        const from = placed.get(edge.from);
+        const to = references.has(edge) ? { key: `ref:${id}`, kind: 'reference', it: a.byKey[edge.to], level: from.level + 1, span: .75 } : placed.get(edge.to);
+        if (to.kind === 'reference') nodes.push(to);
+        const guides = [];
+        for (let level = from.level + 1; level < to.level; level++) {
+          const n = { key: `guide:${id}:${level}`, kind: 'route', level, span: .12,
+            x: from.x + (to.x - from.x) * (level - from.level) / (to.level - from.level) };
+          nodes.push(n); guides.push(n);
+        }
+        const chain = [from, ...guides, to];
+        for (let i = 1; i < chain.length; i++) steps.push({ from: chain[i - 1], to: chain[i], edge });
+        links.push([from, to, edge, guides]);
+      });
+      const rows = Array.from({ length: Math.max(...nodes.map(n => n.level)) + 1 }, (_, level) => nodes.filter(n => n.level === level).sort((p, q) => (p.x || 0) - (q.x || 0)));
+      const stepsByRow = rows.map(() => []);
+      const incoming = new Map(nodes.map(n => [n, []])), outgoing = new Map(nodes.map(n => [n, []]));
+      for (const step of steps) { incoming.get(step.to).push(step.from); outgoing.get(step.from).push(step.to); stepsByRow[step.from.level].push(step); }
+      const positions = () => new Map(rows.flatMap(row => row.map((n, i) => [n, i])));
+      const conflicts = () => {
+        const at = positions(), result = [];
+        for (const links of stepsByRow) {
+          for (let i = 0; i < links.length; i++) for (const q of links.slice(i + 1)) {
+            const p = links[i];
+            if ((at.get(p.from) - at.get(q.from)) * (at.get(p.to) - at.get(q.to)) < 0) result.push([p.edge, q.edge]);
+          }
+        }
+        return result;
+      };
+      // A forest has a crossing-free depth-first order, even when branches occupy different rows.
+      if (nodes.every(n => incoming.get(n).length <= 1)) {
+        const order = new Map();
+        const visit = n => { order.set(n, order.size); outgoing.get(n).forEach(visit); };
+        nodes.filter(n => !incoming.get(n).length).forEach(visit);
+        rows.forEach(row => row.sort((p, q) => order.get(p) - order.get(q)));
+      }
+      let clashes = conflicts(), best = rows.map(row => [...row]), bestCount = clashes.length;
+      for (let pass = 0; bestCount && pass < 12; pass++) {
+        for (const down of [true, false]) {
+          const order = down ? rows.slice(1) : rows.slice(0, -1).reverse();
+          for (const row of order) {
+            const at = positions(), before = new Map(row.map((n, i) => [n, i]));
+            const connected = down ? incoming : outgoing;
+            const middle = n => connected.get(n).length ? connected.get(n).reduce((sum, p) => sum + at.get(p), 0) / connected.get(n).length : before.get(n);
+            row.sort((p, q) => middle(p) - middle(q) || before.get(p) - before.get(q));
+          }
+          for (let sweep = 0; sweep < 4; sweep++) {
+            let changed = false;
+            const at = positions();
+            for (const row of rows) for (let i = 0; i < row.length - 1; i++) {
+              const left = row[i], right = row[i + 1];
+              let delta = 0;
+              for (const connections of [incoming, outgoing]) for (const p of connections.get(left)) for (const q of connections.get(right))
+                delta += Math.sign(at.get(q) - at.get(p));
+              if (delta < 0) { [row[i], row[i + 1]] = [right, left]; at.set(right, i); at.set(left, i + 1); changed = true; }
+            }
+            if (!changed) break;
+          }
+          for (const row of rows.filter(r => r.length > 1 && r.length <= 10)) {
+            const at = positions(), weights = row.map(p => row.map(q => {
+              let count = 0;
+              for (const links of [incoming, outgoing]) for (const a of links.get(p)) for (const b of links.get(q)) if (at.get(a) > at.get(b)) count++;
+              return count;
+            }));
+            const size = 1 << row.length, cost = new Float64Array(size).fill(Infinity), choice = new Uint8Array(size); cost[0] = 0;
+            for (let mask = 0; mask < size; mask++) for (let i = 0; i < row.length; i++) if (!(mask & (1 << i))) {
+              let next = cost[mask];
+              for (let j = 0; j < row.length; j++) if (mask & (1 << j)) next += weights[j][i];
+              const target = mask | (1 << i);
+              if (next < cost[target]) { cost[target] = next; choice[target] = i; }
+            }
+            const order = [];
+            for (let mask = size - 1; mask;) { const i = choice[mask]; order.unshift(row[i]); mask ^= 1 << i; }
+            row.splice(0, row.length, ...order);
+          }
+          clashes = conflicts();
+          if (clashes.length < bestCount) { bestCount = clashes.length; best = rows.map(row => [...row]); }
+          if (!bestCount) break;
+        }
+      }
+      rows.forEach((row, i) => row.splice(0, row.length, ...best[i]));
+      clashes = conflicts();
+      if (clashes.length) {
+        if (trial) {
+          if (clashes.length >= trial.before) {
+            for (const [n, level] of trial.levels) n.level = level;
+            trial = null; continue;
+          }
+          trial = null;
+        }
+        if (edges.length <= 50 && moves < 16) {
+          const state = [...placed.values()].map(n => n.level).join(',');
+          const keys = [...new Set(clashes.flat().flatMap(e => [e.to, e.from]))];
+          let proposal;
+          for (const key of keys) for (const delta of [1, -1]) {
+            const signature = state + ':' + key + ':' + delta;
+            if (proposal || attempted.has(signature)) continue;
+            attempted.add(signature);
+            const levels = new Map(), occupied = [];
+            for (const n of placed.values()) {
+              let level = Math.max(n.level + (n.key === key ? delta : 0), 0, ...((up[n.key] || []).map(p => levels.get(placed.get(p)) + 1)));
+              while ((occupied[level] || 0) >= width) level++;
+              levels.set(n, level); occupied[level] = (occupied[level] || 0) + 1;
+            }
+            if ([...levels].some(([n, level]) => n.level !== level)) proposal = levels;
+          }
+          if (proposal) {
+            trial = { before: clashes.length, levels: new Map([...placed.values()].map(n => [n, n.level])) };
+            for (const [n, level] of proposal) n.level = level;
+            moves++; continue;
+          }
+        }
+        const counts = new Map();
+        for (const pair of clashes) for (const e of pair) if (!references.has(e)) counts.set(e, (counts.get(e) || 0) + 1);
+        const worst = [...counts].sort((p, q) => q[1] - p[1])[0]?.[0];
+        if (!worst) throw new Error('Could not separate prerequisite branches.');
+        references.add(worst); continue;
+      }
+      const span = Math.max(...rows.map(row => row.reduce((sum, n) => sum + n.span, 0)));
+      for (const row of rows) {
+        let cursor = (span - row.reduce((sum, n) => sum + n.span, 0)) / 2;
+        for (const n of row) { n.x = cursor + (n.span - 1) / 2; cursor += n.span; }
+      }
+      drawing = { nodes, links, span: Math.ceil(span), height: rows.length }; break;
+    }
+    parts.push(drawing);
+  }
+  const capacity = Math.max(width, ...parts.map(p => p.span)), bottom = Array(capacity).fill(0), rowCounts = [], nodes = [], links = [];
+  for (const part of parts.sort((p, q) => q.nodes.filter(n => n.kind === 'course').length - p.nodes.filter(n => n.kind === 'course').length)) {
     let left = 0, top = Infinity;
-    for (let x = 0; x <= width - span; x++) {
-      const y = Math.max(...bottom.slice(x, x + span));
+    const counts = Array.from({ length: part.height }, (_, level) => part.nodes.filter(n => n.kind === 'course' && n.level === level).length);
+    for (let x = 0; x <= capacity - part.span; x++) {
+      let y = Math.max(...bottom.slice(x, x + part.span));
+      while (counts.some((count, level) => (rowCounts[y + level] || 0) + count > width)) y++;
       if (y < top) { left = x; top = y; }
     }
-    for (const n of part) { n.x += left; n.level += top; nodes.push(n); }
-    bottom.fill(top + height, left, left + span);
+    for (const n of part.nodes) { n.x += left; n.level += top; nodes.push(n); }
+    counts.forEach((count, level) => { rowCounts[top + level] = (rowCounts[top + level] || 0) + count; });
+    links.push(...part.links); bottom.fill(top + part.height, left, left + part.span);
   }
-  return { nodes, links: a.edges.map(e => [byKey[e.from], byKey[e.to], e]) };
+  return { nodes, links };
 }
 
-export function routePadding(T, gap) {
-  const events = T.links.filter(([p, c]) => c.level - p.level > 1)
-    .flatMap(([p, c]) => [[p.level + .5, 1], [c.level - .5, -1]])
-    .sort((p, q) => p[0] - q[0] || q[1] - p[1]);
-  let active = 0, peak = 0;
-  for (const [, delta] of events) peak = Math.max(peak, active += delta);
-  return Math.max(gap / 2 + 4, 12 + Math.ceil(peak / 2) * 6);
-}
-
-// Distinct perimeter ports and interval-reserved lanes prevent connections from sharing a stem.
-export function treeRoutes(T, { cw, ch, gx, gy, pad, py, minX, minL, width }) {
-  const boxes = new Map(T.nodes.map(n => [n, { x: (n.x - minX) * (cw + gx) + pad, y: (n.level - minL) * (ch + gy) + py }]));
-  const groups = new Map(T.nodes.map(n => [n, { top: [], bottom: [], left: [], right: [] }]));
-  const sides = new Map(T.nodes.map(n => [n, new Set()]));
-  const paths = T.links.map(([from, to], i) => {
-    const dx = to.x - from.x;
-    const pick = (node, role, side, fallback) => {
-      const key = role + side;
-      if (Math.abs(dx) < .8 || sides.get(node).has(key)) return fallback;
-      sides.get(node).add(key); return side;
-    };
-    const source = { node: from, other: to, side: pick(from, 'out', dx < 0 ? 'left' : 'right', 'bottom'), i };
-    const target = { node: to, other: from, side: pick(to, 'in', dx < 0 ? 'right' : 'left', 'top'), i };
-    groups.get(from)[source.side].push(source); groups.get(to)[target.side].push(target);
-    return { source, target, segments: [], long: to.level - from.level > 1 };
+// Ordered row boundaries make every curve stay between its neighbours. Guide slots are not cards.
+export function treeRoutes(T, { cw, ch, gx, gy, pad, py, minX, minL }) {
+  const centre = n => (n.x - minX) * (cw + gx) + pad + cw / 2;
+  const top = n => (n.level - minL) * (ch + gy) + py;
+  const incoming = new Map(T.nodes.map(n => [n, []])), outgoing = new Map(T.nodes.map(n => [n, []]));
+  const paths = T.links.map(([from, to, , guides = []], i) => {
+    const p = { chain: [from, ...guides, to], segments: [], long: guides.length > 0, i };
+    outgoing.get(from).push(p); incoming.get(to).push(p); return p;
   });
-  for (const [node, ports] of groups) for (const [side, ends] of Object.entries(ports)) {
-    const horizontal = side === 'top' || side === 'bottom', box = boxes.get(node);
-    ends.sort((a, b) => (horizontal ? a.other.x - b.other.x : a.other.level - b.other.level) || a.i - b.i);
-    ends.forEach((end, i) => {
-      const along = 12 + ((horizontal ? cw : ch) - 24) * (i + 1) / (ends.length + 1);
-      end.point = horizontal ? [box.x + along, box.y + (side === 'bottom' ? ch : 0)]
-        : [box.x + (side === 'right' ? cw : 0), box.y + along];
-    });
+  for (const [node, list] of outgoing) {
+    list.sort((p, q) => centre(p.chain[1]) - centre(q.chain[1]) || p.i - q.i);
+    list.forEach((p, i) => { p.source = { node, side: 'bottom', point: [centre(node) - cw / 2 + 12 + (cw - 24) * (i + 1) / (list.length + 1), top(node) + ch] }; });
   }
-  const maxRight = Math.max(...[...boxes.values()].map(b => b.x + cw));
-  const candidates = [];
-  for (let x = pad - 6; x >= 4; x -= 6) candidates.push(x);
-  for (let x = maxRight + 6; x <= width - 4; x += 6) candidates.push(x);
-  const columns = Math.ceil(Math.max(...T.nodes.map(n => n.x)) - minX);
-  for (let column = 0; column < columns; column++) {
-    const middle = pad + cw + column * (cw + gx) + gx / 2;
-    for (let offset = -Math.floor((gx / 2 - 5) / 6); offset <= Math.floor((gx / 2 - 5) / 6); offset++)
-      candidates.push(middle + offset * 6);
-  }
-  const reserved = new Map(candidates.map(x => [x, []]));
-  for (const path of paths.filter(p => p.long).sort((p, q) =>
-    (q.target.node.level - q.source.node.level) - (p.target.node.level - p.source.node.level))) {
-    const from = boxes.get(path.source.node), to = boxes.get(path.target.node);
-    const low = from.y + ch + gy / 4, high = to.y - gy / 4;
-    const ideal = (path.source.point[0] + path.target.point[0]) / 2;
-    const free = candidates.filter(x => !reserved.get(x).some(([a, b]) => a <= high && b >= low)
-      && ![...boxes.values()].some(b => b.y < high && b.y + ch > low && x > b.x - 4 && x < b.x + cw + 4));
-    if (!free.length) throw new Error('Not enough room to keep prerequisite connections separate.');
-    path.lane = free.reduce((best, x) => Math.abs(x - ideal) < Math.abs(best - ideal) ? x : best);
-    reserved.get(path.lane).push([low, high]);
+  for (const [node, list] of incoming) {
+    list.sort((p, q) => centre(p.chain.at(-2)) - centre(q.chain.at(-2)) || p.i - q.i);
+    const width = node.kind === 'reference' ? node.span * (cw + gx) - gx : cw;
+    list.forEach((p, i) => { p.target = { node, side: 'top', point: [centre(node) - width / 2 + 12 + (width - 24) * (i + 1) / (list.length + 1), top(node) + (node.kind === 'reference' ? (ch - 30) / 2 : 0)] }; });
   }
   for (const path of paths) {
-    const { source, target, segments } = path, a = source.point, b = target.point;
-    const sourceBox = boxes.get(source.node), targetBox = boxes.get(target.node);
-    const clear = Math.min(12, gx * .3);
-    const sourceSide = source.side === 'left' ? -1 : source.side === 'right' ? 1 : 0;
-    const targetSide = target.side === 'left' ? -1 : target.side === 'right' ? 1 : 0;
-    const out = [a[0] + sourceSide * clear, sourceBox.y + ch + gy / 4];
-    const into = [b[0] + targetSide * clear, targetBox.y - gy / 4];
-    const curve = (from, c1, c2, to) => segments.push({ from, c1, c2, to });
-    curve(a, sourceSide ? [out[0], a[1]] : [a[0], out[1]], [out[0], out[1] - gy / 8], out);
-    if (path.long) {
-      const start = [path.lane, sourceBox.y + ch + gy * .75], end = [path.lane, targetBox.y - gy * .75];
-      curve(out, [out[0], out[1] + gy / 4], [start[0], start[1] - gy / 4], start);
-      const dy = end[1] - start[1];
-      curve(start, [start[0] + .7, start[1] + dy / 3], [end[0] - .7, end[1] - dy / 3], end);
-      curve(end, [end[0], end[1] + gy / 4], [into[0], into[1] - gy / 4], into);
-    } else {
-      const dy = into[1] - out[1];
-      curve(out, [out[0], out[1] + dy / 3], [into[0], into[1] - dy / 3], into);
-    }
-    curve(into, [into[0], into[1] + gy / 8], targetSide ? [into[0], b[1]] : [b[0], b[1] - gy / 8], b);
-    path.d = `M${a.join(',')} ` + segments.map(s => `C${s.c1.join(',')} ${s.c2.join(',')} ${s.to.join(',')}`).join(' ');
+    const curve = (from, c1, c2, to) => path.segments.push({ from, c1, c2, to });
+    let start = path.source.point;
+    path.chain.slice(1).forEach((n, i) => {
+      const last = i === path.chain.length - 2;
+      const end = last ? [path.target.point[0], top(n)] : [centre(n), top(n)];
+      const middle = (start[1] + end[1]) / 2;
+      curve(start, [start[0], middle], [end[0], middle], end);
+      if (!last) {
+        const bottom = [centre(n), top(n) + ch];
+        curve(end, [end[0], end[1] + ch / 3], [bottom[0], bottom[1] - ch / 3], bottom); start = bottom;
+      } else if (n.kind === 'reference') curve(end, end, path.target.point, path.target.point);
+    });
+    path.d = `M${path.source.point.join(',')} ` + path.segments.map(s => `C${s.c1.join(',')} ${s.c2.join(',')} ${s.to.join(',')}`).join(' ');
   }
   return paths;
 }
