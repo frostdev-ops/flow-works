@@ -22,7 +22,7 @@ void (async () => {
       for (const r of rules || []) {
         const opts = r.advice?.courseArray || [];
         if (opts.length <= 4) for (const c of opts)
-          if (!/@/.test(c.discipline + c.number) && c.prerequisiteExists !== 'N') codes.add(c.discipline + ' ' + c.number);
+          if (!/@/.test(c.discipline + c.number)) codes.add(c.discipline + ' ' + c.number);
         walk(r.ruleArray);
       }
     })((audit.blockArray || []).flatMap(b => b.ruleArray || []));

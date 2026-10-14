@@ -35,7 +35,22 @@ export function parseAudit(audit, prereqRows = {}) {
   if (!Array.isArray(audit?.blockArray)) throw new Error("That doesn't look like a Degree Works audit.");
   const blocks = audit.blockArray;
   const degree = blocks.find(b => b.requirementType === 'DEGREE') || blocks[0];
-  const pre = code => prereqGroups(prereqRows[code]);
+  const sketch = {
+    'MATH 1170': [['MATH 1060']], 'ECON 2020': [['MATH 1060']],
+    'ACCT 2110': [['MATH 1170']], 'ECON 2100': [['MATH 1170']],
+    'FIN 3200': [['ECON 2020'], ['ACCT 2110']],
+    'ACCT 2120': [['ACCT 2110']], 'ECON 2110': [['ECON 2100']],
+  };
+  // This correction belongs to the supplied Foundations of Math course map, not other schools' MATH 1060.
+  let foundations = (audit.classInformation?.classArray || []).some(c =>
+    c.discipline === 'MATH' && c.number === '1060' && /foundations? (of )?math/i.test(c.courseTitle || ''));
+  for (const b of blocks) walk(b.ruleArray, r => {
+    if (r.advice?.courseArray?.some(c => c.discipline === 'MATH' && c.number === '1060' && /foundations? (of )?math/i.test(c.title || r.label || ''))) foundations = true;
+  });
+  const pre = code => {
+    const groups = prereqGroups(prereqRows[code]);
+    return groups.length ? groups : foundations && sketch[code] ? sketch[code].map(g => [...g]) : [];
+  };
 
   // A block hangs under whichever block's Block/Blocktype rule pulls it in; groups are the degree's direct children.
   const parent = {};
@@ -147,7 +162,7 @@ export function parseAudit(audit, prereqRows = {}) {
     title: major?.title || degree.title, degree: degree.title, catalog: degree.catalogYearLit || degree.catalogYear || '',
     pct: Math.round(+audit.auditHeader?.percentComplete || +degree.percentComplete || 0),
     total, applied, groups, courses, remaining, lastTerm: latest?.termLabel,
-    prereqs: Object.fromEntries(Object.keys(prereqRows).map(k => [k, prereqGroups(prereqRows[k])])),
+    prereqs: Object.fromEntries([...new Set([...Object.keys(prereqRows), ...(foundations ? Object.keys(sketch) : [])])].map(k => [k, pre(k)])),
   };
 }
 
@@ -290,6 +305,89 @@ export function degreeTree(a, width = 4) {
     bottom.fill(top + height, left, left + span);
   }
   return { nodes, links: a.edges.map(e => [byKey[e.from], byKey[e.to], e]) };
+}
+
+export function routePadding(T, gap) {
+  const events = T.links.filter(([p, c]) => c.level - p.level > 1)
+    .flatMap(([p, c]) => [[p.level + .5, 1], [c.level - .5, -1]])
+    .sort((p, q) => p[0] - q[0] || q[1] - p[1]);
+  let active = 0, peak = 0;
+  for (const [, delta] of events) peak = Math.max(peak, active += delta);
+  return Math.max(gap / 2 + 4, 12 + Math.ceil(peak / 2) * 6);
+}
+
+// Distinct perimeter ports and interval-reserved lanes prevent connections from sharing a stem.
+export function treeRoutes(T, { cw, ch, gx, gy, pad, py, minX, minL, width }) {
+  const boxes = new Map(T.nodes.map(n => [n, { x: (n.x - minX) * (cw + gx) + pad, y: (n.level - minL) * (ch + gy) + py }]));
+  const groups = new Map(T.nodes.map(n => [n, { top: [], bottom: [], left: [], right: [] }]));
+  const sides = new Map(T.nodes.map(n => [n, new Set()]));
+  const paths = T.links.map(([from, to], i) => {
+    const dx = to.x - from.x;
+    const pick = (node, role, side, fallback) => {
+      const key = role + side;
+      if (Math.abs(dx) < .8 || sides.get(node).has(key)) return fallback;
+      sides.get(node).add(key); return side;
+    };
+    const source = { node: from, other: to, side: pick(from, 'out', dx < 0 ? 'left' : 'right', 'bottom'), i };
+    const target = { node: to, other: from, side: pick(to, 'in', dx < 0 ? 'right' : 'left', 'top'), i };
+    groups.get(from)[source.side].push(source); groups.get(to)[target.side].push(target);
+    return { source, target, segments: [], long: to.level - from.level > 1 };
+  });
+  for (const [node, ports] of groups) for (const [side, ends] of Object.entries(ports)) {
+    const horizontal = side === 'top' || side === 'bottom', box = boxes.get(node);
+    ends.sort((a, b) => (horizontal ? a.other.x - b.other.x : a.other.level - b.other.level) || a.i - b.i);
+    ends.forEach((end, i) => {
+      const along = 12 + ((horizontal ? cw : ch) - 24) * (i + 1) / (ends.length + 1);
+      end.point = horizontal ? [box.x + along, box.y + (side === 'bottom' ? ch : 0)]
+        : [box.x + (side === 'right' ? cw : 0), box.y + along];
+    });
+  }
+  const maxRight = Math.max(...[...boxes.values()].map(b => b.x + cw));
+  const candidates = [];
+  for (let x = pad - 6; x >= 4; x -= 6) candidates.push(x);
+  for (let x = maxRight + 6; x <= width - 4; x += 6) candidates.push(x);
+  const columns = Math.ceil(Math.max(...T.nodes.map(n => n.x)) - minX);
+  for (let column = 0; column < columns; column++) {
+    const middle = pad + cw + column * (cw + gx) + gx / 2;
+    for (let offset = -Math.floor((gx / 2 - 5) / 6); offset <= Math.floor((gx / 2 - 5) / 6); offset++)
+      candidates.push(middle + offset * 6);
+  }
+  const reserved = new Map(candidates.map(x => [x, []]));
+  for (const path of paths.filter(p => p.long).sort((p, q) =>
+    (q.target.node.level - q.source.node.level) - (p.target.node.level - p.source.node.level))) {
+    const from = boxes.get(path.source.node), to = boxes.get(path.target.node);
+    const low = from.y + ch + gy / 4, high = to.y - gy / 4;
+    const ideal = (path.source.point[0] + path.target.point[0]) / 2;
+    const free = candidates.filter(x => !reserved.get(x).some(([a, b]) => a <= high && b >= low)
+      && ![...boxes.values()].some(b => b.y < high && b.y + ch > low && x > b.x - 4 && x < b.x + cw + 4));
+    if (!free.length) throw new Error('Not enough room to keep prerequisite connections separate.');
+    path.lane = free.reduce((best, x) => Math.abs(x - ideal) < Math.abs(best - ideal) ? x : best);
+    reserved.get(path.lane).push([low, high]);
+  }
+  for (const path of paths) {
+    const { source, target, segments } = path, a = source.point, b = target.point;
+    const sourceBox = boxes.get(source.node), targetBox = boxes.get(target.node);
+    const clear = Math.min(12, gx * .3);
+    const sourceSide = source.side === 'left' ? -1 : source.side === 'right' ? 1 : 0;
+    const targetSide = target.side === 'left' ? -1 : target.side === 'right' ? 1 : 0;
+    const out = [a[0] + sourceSide * clear, sourceBox.y + ch + gy / 4];
+    const into = [b[0] + targetSide * clear, targetBox.y - gy / 4];
+    const curve = (from, c1, c2, to) => segments.push({ from, c1, c2, to });
+    curve(a, sourceSide ? [out[0], a[1]] : [a[0], out[1]], [out[0], out[1] - gy / 8], out);
+    if (path.long) {
+      const start = [path.lane, sourceBox.y + ch + gy * .75], end = [path.lane, targetBox.y - gy * .75];
+      curve(out, [out[0], out[1] + gy / 4], [start[0], start[1] - gy / 4], start);
+      const dy = end[1] - start[1];
+      curve(start, [start[0] + .7, start[1] + dy / 3], [end[0] - .7, end[1] - dy / 3], end);
+      curve(end, [end[0], end[1] + gy / 4], [into[0], into[1] - gy / 4], into);
+    } else {
+      const dy = into[1] - out[1];
+      curve(out, [out[0], out[1] + dy / 3], [into[0], into[1] - dy / 3], into);
+    }
+    curve(into, [into[0], into[1] + gy / 8], targetSide ? [into[0], b[1]] : [b[0], b[1] - gy / 8], b);
+    path.d = `M${a.join(',')} ` + segments.map(s => `C${s.c1.join(',')} ${s.c2.join(',')} ${s.to.join(',')}`).join(' ');
+  }
+  return paths;
 }
 
 // A course's prerequisite tree (rows above) and what it unlocks (rows below), for the course modal. Shared courses

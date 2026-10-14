@@ -12,6 +12,8 @@ Flow-works turns an Ellucian Degree Works audit into a top-to-bottom prerequisit
 
 The whole degree fits into one canvas on load, including courses without prerequisite links. Branches stay close together, their starting courses sit above the fork, and shared prerequisites appear once. Courses can stagger instead of stretching every branch to the same row. Rows are not terms.
 
+Connections fan out as separate curves from individual attachment points on the top, bottom, and sides of a card. Long connections reserve their own lanes while they overlap in height. Lines can cross, but never merge into a shared stem or run through a card.
+
 Card color shows how many later courses depend on a course, directly or through another prerequisite: **dark orange for the biggest bottlenecks, through amber to green for fewer dependents**. Each downstream course counts once, even when several paths lead to it. Completed courses retain their dependency color and have a Done badge. Status, term, and dependency count are also available as text.
 
 **Columns: Auto** balances the chart for your screen. Choose a column count or change **Spacing** to arrange it yourself. **Fit all** fits both width and height; **Zoom** lets you inspect more closely. Column and spacing preferences stay in your browser. Very large degrees fit at a smaller scale; select any course to read its details at full size.
@@ -48,6 +50,8 @@ Remaining requirements come from each rule's *still needed* advice. Choice rules
 3. Each term stays under the max-credits limit.
 
 Prerequisites are read as an AND of OR-groups. Test-score alternatives and parenthesis nesting are ignored. The planner doesn't know which terms a course is offered in, so treat the plan as a starting point for a conversation with your advisor. It isn't a registration plan.
+
+For audits identifying **MATH 1060 as Foundations of Math**, blank prerequisite rows use the supplied business course map: MATH 1060 → MATH 1170 and ECON 2020; MATH 1170 → ACCT 2110 and ECON 2100; ACCT 2110 plus ECON 2020 → FIN 3200; ACCT 2110 → ACCT 2120; ECON 2100 → ECON 2110. Existing prerequisite rows are preserved. This correction applies to saved audits and JSON imports as well as the bookmarklet. The bookmarklet also checks named courses even when the source's prerequisite flag says No.
 
 ## Development
 

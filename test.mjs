@@ -1,7 +1,8 @@
 // node test.mjs — sanity check of the parser + planner against demo.json.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseAudit, columns, analyze, degreeTree, courseTree, prereqGroups, nextTerm, titleCase, priorityColors } from './model.js';
+import { runInNewContext } from 'node:vm';
+import { parseAudit, columns, analyze, degreeTree, courseTree, prereqGroups, nextTerm, titleCase, priorityColors, routePadding, treeRoutes } from './model.js';
 
 assert.deepEqual(prereqGroups([['', 'CS', '2300'], ['A', 'MATH', '1160'], ['O', 'MATH', '1350'], ['O', '', '']]), [['CS 2300'], ['MATH 1160', 'MATH 1350']]);
 assert.equal(nextTerm('Fall 2026'), 'Spring 2027');
@@ -92,6 +93,77 @@ sketch.byKey.strategy = { key: 'strategy' };
 const drawing = degreeTree(sketch, 4), node = key => drawing.nodes.find(n => n.key === key);
 assert.equal(node('math').x, (node('econ').x + node('business').x) / 2, 'foundation sits over its two branches');
 assert.equal(drawing.nodes.length, 9, 'the disconnected strategy requirement stays visible');
+const sketchClasses = [
+  ['MATH', '1060', 'Foundations of Math', 0], ['MATH', '1170', 'Business Math', 1], ['ECON', '2020', 'Microeconomic Principles', 1],
+  ['ACCT', '2110', 'Financial Accounting', 2], ['ECON', '2100', 'Business Statistics I', 2],
+  ['FIN', '3200', 'Corporate Finance', 3], ['ACCT', '2120', 'Managerial Accounting', 3], ['ECON', '2110', 'Business Statistics II', 3],
+].map(([discipline, number, courseTitle, year]) => ({ id: discipline + number, discipline, number, courseTitle,
+  credits: '3', term: String(202000 + year * 100), termLiteral: `Fall ${2020 + year}` }));
+const sketchAudit = { blockArray: [{ requirementType: 'DEGREE', requirementValue: 'BS', title: 'Business degree', ruleArray: [],
+  header: { qualifierArray: [{ name: 'CLASSESCREDITS', credits: 24, applied: 24 }] } }], classInformation: { classArray: sketchClasses } };
+const repaired = parseAudit(sketchAudit);
+assert.deepEqual(repaired.courses.find(c => c.code === 'MATH 1170').prereqs, [['MATH 1060']], 'blank business math prereq is recovered');
+assert.deepEqual(repaired.courses.find(c => c.code === 'ECON 2020').prereqs, [['MATH 1060']], 'blank microeconomics prereq is recovered');
+assert.deepEqual(repaired.courses.find(c => c.code === 'ACCT 2110').prereqs, [['MATH 1170']], 'accounting follows the sketch, not an invented direct foundation link');
+assert.deepEqual(repaired.prereqs['FIN 3200'], [['ECON 2020'], ['ACCT 2110']], 'course modal sees the repaired finance prerequisites');
+const repairedGraph = analyze(columns(repaired));
+assert.equal(repairedGraph.info[repaired.courses[0].key].unlocks, 7, 'foundation bottleneck includes all seven downstream courses');
+assert.equal(repairedGraph.edges.length, 8, 'all eight sketch connections are present');
+const explicit = { 'MATH 1170': [['', 'MATH', '1150']] };
+assert.deepEqual(parseAudit(sketchAudit, explicit).prereqs['MATH 1170'], [['MATH 1150']], 'reported prerequisites stay intact');
+assert.deepEqual(explicit, { 'MATH 1170': [['', 'MATH', '1150']] }, 'correction does not mutate imported data');
+const otherSchool = structuredClone(sketchAudit); otherSchool.classInformation.classArray[0].courseTitle = 'Trigonometry';
+assert.deepEqual(parseAudit(otherSchool).prereqs, {}, 'same course code at another school gets no invented prerequisites');
+const unscheduled = structuredClone(sketchAudit);
+unscheduled.classInformation.classArray = [];
+unscheduled.blockArray[0].header.qualifierArray[0].applied = 0;
+unscheduled.blockArray.push({ requirementType: 'MAJOR', requirementValue: 'BIZ', title: 'Business', ruleArray: sketchClasses.map(c => ({
+  ruleType: 'Course', label: c.courseTitle, advice: { classes: 1, courseArray: [{ discipline: c.discipline, number: c.number, credits: 3, prerequisiteExists: 'N' }] },
+})) });
+const futureSketch = parseAudit(unscheduled), futureTerms = columns(futureSketch);
+const scheduled = code => futureTerms.findIndex(t => t.items.some(c => c.code === code));
+assert.ok(scheduled('MATH 1060') < scheduled('MATH 1170') && scheduled('MATH 1170') < scheduled('ACCT 2110'), 'recovered source links order the suggested terms too');
+const lookups = [];
+const bookmarkAudit = { blockArray: [{ ruleArray: [{ advice: { courseArray: [{ discipline: 'MATH', number: '1170', prerequisiteExists: 'N' }] } }] }], classInformation: { classArray: [] } };
+await new Promise((resolve, reject) => runInNewContext(readFileSync(new URL('./bookmarklet.js', import.meta.url), 'utf8'), {
+  performance: { getEntriesByType: () => [{ name: 'https://school.example/responsive/api/audit?id=1' }] },
+  fetch: async url => { lookups.push(url); return { ok: true, json: async () => url.includes('/api/audit?') ? bookmarkAudit
+    : { courseInformation: { courses: [{ prerequisites: [{ subjectCodePrerequisite: 'MATH', courseNumberPrerequisite: '1060' }] }] } } }; },
+  Blob, CompressionStream, Response, Uint8Array, btoa,
+  window: { open: () => { resolve(); return true; } }, location: {}, alert: message => reject(new Error(message)),
+}));
+assert.ok(lookups.some(url => url.includes('/api/course-link?discipline=MATH&number=1170&')), 'bookmarklet requests prerequisites despite an incorrect no-prerequisites flag');
+
+const geometry = (T, gap = 20) => {
+  const cw = 176, ch = 76, gx = gap, gy = gap + 12, minX = Math.min(0, ...T.nodes.map(n => n.x)), minL = Math.min(0, ...T.nodes.map(n => n.level));
+  const pad = routePadding(T, gx), py = 4;
+  return { cw, ch, gx, gy, pad, py, minX, minL, width: (Math.max(...T.nodes.map(n => n.x)) - minX + 1) * (cw + gx) - gx + pad * 2 };
+};
+const pointOn = (s, t) => s.from.map((v, i) => (1 - t) ** 3 * v + 3 * (1 - t) ** 2 * t * s.c1[i] + 3 * (1 - t) * t ** 2 * s.c2[i] + t ** 3 * s.to[i]);
+for (const graph of [a, sketch, wide]) for (const width of [2, 4, 10, 16]) for (const gap of [20, 80]) {
+  const layout = degreeTree(graph, width), g = geometry(layout, gap), routes = treeRoutes(layout, g);
+  const ports = new Map(layout.nodes.map(n => [n, new Set()]));
+  const boxes = layout.nodes.map(n => ({ x: (n.x - g.minX) * (g.cw + g.gx) + g.pad, y: (n.level - g.minL) * (g.ch + g.gy) + g.py }));
+  for (const r of routes) {
+    for (const end of [r.source, r.target]) {
+      const key = end.point.join(':');
+      assert.ok(!ports.get(end.node).has(key), 'every connection has its own perimeter attachment');
+      ports.get(end.node).add(key);
+    }
+    for (const s of r.segments) for (let t = .02; t < 1; t += .04) {
+      const [x, y] = pointOn(s, t);
+      assert.ok(boxes.every(b => x <= b.x + .01 || x >= b.x + g.cw - .01 || y <= b.y + .01 || y >= b.y + g.ch - .01), 'curved connections stay outside cards');
+    }
+  }
+  for (let i = 0; i < routes.length; i++) for (const other of routes.slice(i + 1)) {
+    const r = routes[i];
+    if (r.long && other.long && r.source.node.level < other.target.node.level && other.source.node.level < r.target.node.level)
+      assert.ok(Math.abs(r.lane - other.lane) >= 6 || r.target.node.level <= other.source.node.level || other.target.node.level <= r.source.node.level, 'simultaneous long paths have separate lanes');
+  }
+  const segments = routes.flatMap(r => r.segments.map(s => [s.from, s.c1, s.c2, s.to].flat().join(':')));
+  assert.equal(new Set(segments).size, segments.length, 'connections never share an identical curve segment');
+}
+assert.ok(treeRoutes(drawing, geometry(drawing)).some(r => ['left', 'right'].includes(r.source.side)), 'tentacles can leave the sides of cards');
 const diamond = analyze([
   { items: [{ key: 'root', code: 'ROOT', status: 'done' }] },
   { items: [{ key: 'left', code: 'LEFT', status: 'planned', prereqs: [['ROOT']] }, { key: 'right', code: 'RIGHT', status: 'planned', prereqs: [['ROOT']] }] },

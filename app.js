@@ -1,4 +1,4 @@
-import { parseAudit, columns, analyze, degreeTree, courseTree, priorityColors } from './model.js';
+import { parseAudit, columns, analyze, degreeTree, courseTree, priorityColors, routePadding, treeRoutes } from './model.js';
 
 const $ = s => document.querySelector(s);
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -270,7 +270,7 @@ function treeSize(T, rootIt) {
   const xs = T.nodes.map(n => n.x), lv = T.nodes.map(n => n.level);
   const minX = Math.min(0, ...xs), minL = Math.min(0, ...lv);
   const cw = rootIt ? TW : 176, ch = rootIt ? TH : 76;
-  const gx = rootIt ? TGX : +$('#layout-spacing').value, gy = rootIt ? TGY : gx + 12, pad = rootIt ? 0 : gx / 2 + 4;
+  const gx = rootIt ? TGX : +$('#layout-spacing').value, gy = rootIt ? TGY : gx + 12, pad = routePadding(T, gx);
   const py = rootIt ? 0 : 4;
   return { cw, ch, gx, gy, pad, py, minX, minL,
     width: (Math.max(0, ...xs) - minX + 1) * (cw + gx) - gx + pad * 2,
@@ -278,27 +278,20 @@ function treeSize(T, rootIt) {
 }
 
 function tree(T, rootIt) {
-  const { cw, ch, gx, gy, pad, py, minX, minL, width: Wd, height: Ht } = treeSize(T, rootIt);
+  const size = treeSize(T, rootIt), routes = treeRoutes(T, size);
+  const { cw, ch, gx, gy, pad, py, minX, minL, width: Wd, height: Ht } = size;
   const at = n => [(n.x - minX) * (cw + gx) + pad, (n.level - minL) * (ch + gy) + py];
   const box = h('div', { class: `tree${rootIt ? '' : ' overview'}`, style: `width:${Wd}px;height:${Ht}px` });
   const lines = svg('svg', { class: 'tree-lines', width: Wd, height: Ht, 'aria-hidden': 'true' });
   const state = n => n.kind === 'or' ? (n.options.find(o => o.code === n.pick)?.it?.status || 'missing') : n.it?.status || 'missing';
   const ring = n => Math.abs(n.level);
   const critLinks = new Set(A.critical.slice(1).map((k, i) => A.critical[i] + '>' + k));
-  T.links.forEach(([up, down, edge]) => {
-    const [x1, y1] = at(up), [x2, y2] = at(down), ax = x1 + cw / 2, ay = y1 + ch, bx = x2 + cw / 2, m = (ay + y2) / 2;
-    let path = `M${ax},${ay} C${ax},${m} ${bx},${m} ${bx},${y2}`;
-    if (down.level - up.level > 1) {
-      // Long connections travel in the gutters between fixed columns, without reserving card-sized gaps.
-      const column = bx < ax ? Math.ceil(up.x - minX) - .5 : Math.floor(up.x - minX) + .5;
-      const lane = column * (cw + gx) + pad + cw / 2, out = ay + gy / 2, into = y2 - gy / 2;
-      path = `M${ax},${ay} C${ax},${out} ${lane},${ay} ${lane},${out} L${lane},${into} C${lane},${y2} ${bx},${into} ${bx},${y2}`;
-    }
+  T.links.forEach(([up, down, edge], i) => {
     const from = edge?.from || up.it?.key, to = edge?.to || down.it?.key;
     const cls = edge
       ? [A.byKey[to].status === 'planned' && 'planned', critLinks.has(from + '>' + to) && 'crit'].filter(Boolean).join(' ')
       : state(up) === 'missing' ? 'miss' : state(down) === 'planned' ? 'planned' : '';
-    const p = svg('path', { d: path, class: cls,
+    const p = svg('path', { d: routes[i].d, class: cls,
       'data-from': from || '', 'data-to': to || '',
       style: '--c:var(--muted)' });
     lines.append(p);
