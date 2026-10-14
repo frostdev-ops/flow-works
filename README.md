@@ -12,9 +12,9 @@ Flow-works turns an Ellucian Degree Works audit into a top-to-bottom prerequisit
 
 The whole degree fits into one canvas on load, including courses without prerequisite links. Branches stay close together, their starting courses sit above the fork, and shared prerequisites appear once. Courses can stagger instead of stretching every branch to the same row. Rows are not terms.
 
-Connections fan out as separate curves from individual attachment points on the top, bottom, and sides of a card. Long connections reserve their own lanes while they overlap in height. Lines can cross, but never merge into a shared stem or run through a card.
+Connections are single straight lines attached to the facing edges of each card. Card placement follows the chains and joins, with room reserved for longer links. The layout checks actual segments for crossings, overlaps, and card collisions. When a dense graph cannot fit cleanly, a small course-code reference replaces an endpoint and opens that course’s existing full card. Every prerequisite relationship remains available.
 
-Card color shows how many later courses depend on a course, directly or through another prerequisite: **dark orange for the biggest bottlenecks, through amber to green for fewer dependents**. Each downstream course counts once, even when several paths lead to it. Completed courses retain their dependency color and have a Done badge. Status, term, and dependency count are also available as text.
+Card color shows how many later courses depend on a course, directly or through another prerequisite: **dark orange for the biggest bottlenecks, through amber to green for fewer dependents**. Each downstream course counts once, even when several paths lead to it. Completed courses retain their dependency color and have a Done badge. Compact cards show the course code, title, and status. Select a card for its term and dependency count.
 
 **Columns: Auto** balances the chart for your screen. Choose a column count or change **Spacing** to arrange it yourself. **Fit all** fits both width and height; **Zoom** lets you inspect more closely. Column and spacing preferences stay in your browser. Very large degrees fit at a smaller scale; select any course to read its details at full size.
 

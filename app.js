@@ -152,7 +152,7 @@ function board() {
   stats(terms);
   const count = Object.keys(A.byKey).length;
   $('#viewnote').textContent = count
-    ? `${plural(count, 'course')} · Prerequisites flow down. Select a course for details.`
+    ? `${plural(count, 'course')} · Follow the straight links. Select a course for details.`
     : 'No courses were included in this audit.';
   const pane = $('#board');
   pane.hidden = $('#chart-controls').hidden = !count;
@@ -163,12 +163,12 @@ function board() {
   if ($('#layout-width').value === 'auto') {
     let best = -1;
     for (let width = 2; width <= 16; width++) {
-      const candidate = degreeTree(A, width), { width: w, height: ht } = treeSize(candidate);
+      const candidate = degreeTree(A, width, +$('#layout-spacing').value), { width: w, height: ht } = treeSize(candidate);
       const refs = candidate.nodes.filter(n => n.kind === 'reference').length;
       const score = Math.min(size.width / w, size.height / ht) / (1 + refs * .15);
       if (score > best) { T = candidate; best = score; }
     }
-  } else T = degreeTree(A, +$('#layout-width').value);
+  } else T = degreeTree(A, +$('#layout-width').value, +$('#layout-spacing').value);
   const references = T.nodes.filter(n => n.kind === 'reference').length;
   if (references) $('#viewnote').textContent += ` ${plural(references, 'course reference')} keep connections from crossing.`;
   pane.style.height = Math.max(240, innerHeight - (pane.getBoundingClientRect().top + scrollY) - 16) + 'px';
@@ -273,8 +273,10 @@ function detail(it, keep) {
 function treeSize(T, rootIt) {
   const lv = T.nodes.map(n => n.level);
   const minX = Math.min(0, ...T.nodes.map(n => n.x + (1 - (n.span || 1)) / 2)), minL = Math.min(0, ...lv);
-  const cw = rootIt ? TW : 176, ch = rootIt ? TH : 76;
-  const gx = rootIt ? TGX : +$('#layout-spacing').value, gy = rootIt ? TGY : gx + 12, pad = 16;
+  const cw = rootIt ? TW : 164, ch = rootIt ? TH : 66;
+  const gx = rootIt ? TGX : +$('#layout-spacing').value;
+  const reach = rootIt ? Math.max(0, ...T.links.map(([p, c]) => Math.abs(c.x - p.x) * (cw + gx))) : 0;
+  const gy = rootIt ? Math.max(TGY, (ch / 2 + 4) * reach / (cw / 2 + gx) - ch) : gx + 26, pad = 16;
   const py = rootIt ? 0 : 4;
   return { cw, ch, gx, gy, pad, py, minX, minL,
     width: (Math.max(1, ...T.nodes.map(n => n.x + (1 + (n.span || 1)) / 2)) - minX) * (cw + gx) - gx + pad * 2,

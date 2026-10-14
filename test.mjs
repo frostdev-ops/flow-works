@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
-import { parseAudit, columns, analyze, degreeTree, courseTree, prereqGroups, nextTerm, titleCase, priorityColors, routePadding, treeRoutes } from './model.js';
+import { parseAudit, columns, analyze, degreeTree, courseTree, prereqGroups, nextTerm, titleCase, priorityColors, treeRoutes } from './model.js';
 
 assert.deepEqual(prereqGroups([['', 'CS', '2300'], ['A', 'MATH', '1160'], ['O', 'MATH', '1350'], ['O', '', '']]), [['CS 2300'], ['MATH 1160', 'MATH 1350']]);
 assert.equal(nextTerm('Fall 2026'), 'Spring 2027');
@@ -55,25 +55,26 @@ wide.edges.push({ from: 'root', to: 'end' });
 wide.byKey = Object.fromEntries(Object.entries(wide.byKey).sort(([p], [q]) => p.localeCompare(q)));
 for (const graph of [a, wide]) for (const width of [2, 4, 6, 10, 16]) {
   const D = degreeTree(graph, width), keys = new Set(Object.keys(graph.byKey));
-  assert.deepEqual(new Set(D.nodes.map(n => n.key)), keys, 'every course is shown once, including unlinked requirements');
-  assert.equal(D.nodes.length, keys.size, 'no duplicate courses or card-sized routing slots');
-  assert.ok(D.nodes.every(n => n.x >= 0 && n.x < width), 'layout respects the column limit');
-  assert.equal(new Set(D.nodes.map(n => `${n.x}:${n.level}`)).size, keys.size, 'cards never overlap');
-  for (const n of D.nodes) assert.ok(D.nodes.every(other => other === n || other.level !== n.level || Math.abs(other.x - n.x) >= 1), 'centered branches do not overlap');
+  const cards = D.nodes.filter(n => n.kind === 'course');
+  assert.deepEqual(new Set(cards.map(n => n.key)), keys, 'every full course card is shown once, including unlinked requirements');
+  assert.equal(cards.length, keys.size, 'reference labels do not duplicate full cards');
+  assert.ok(D.nodes.filter(n => n.kind === 'route').every(n => n.span <= .2), 'routing slots remain much narrower than cards');
+  for (const level of new Set(cards.map(n => n.level))) assert.ok(cards.filter(n => n.level === level).length <= width, 'column setting limits the full cards in each row');
+  for (const n of cards) assert.ok(cards.every(other => other === n || other.level !== n.level || Math.abs(other.x - n.x) >= 1 - 1e-8), 'rearranged cards never overlap');
   assert.equal(D.links.length, graph.edges.length, 'every prerequisite link is preserved');
-  D.links.forEach(([from, to, edge], i) => {
-    assert.equal(edge, graph.edges[i]);
-    assert.equal(from.key, edge.from); assert.equal(to.key, edge.to);
+  assert.deepEqual(new Set(D.links.map(link => link[2])), new Set(graph.edges));
+  D.links.forEach(([from, to, edge]) => {
+    assert.equal(from.it.key, edge.from); assert.equal(to.it.key, edge.to);
     assert.ok(from.level < to.level, 'prerequisites always appear above dependents');
   });
 }
 const narrow = degreeTree(wide, 4), broad = degreeTree(wide, 10);
 assert.ok(new Set(narrow.nodes.filter(n => n.key.startsWith('a')).map(n => n.level)).size > 1, 'siblings can stagger onto different rows');
 assert.ok(Math.max(...narrow.nodes.map(n => n.level)) > Math.max(...broad.nodes.map(n => n.level)), 'narrower layouts use more rows');
-assert.ok(narrow.links.filter(([, , e]) => e.from.startsWith('a')).every(([p, c]) => p.x === c.x), 'simple branches stay in the same column');
+assert.ok(narrow.links.filter(([, , e]) => e.from.startsWith('a')).every(([p, c]) => c.level === p.level + 1), 'simple branches remain adjacent while cards move to clear paths');
 const slotFirstKey = m.remaining.find(x => x.after).after;
 const compact = degreeTree(a, 4);
-assert.ok(compact.links.filter(([p]) => p.it.code === 'BIO 1300' || p.it.key === slotFirstKey).every(([p, c]) => c.level === p.level + 1), 'independent short chains stay together');
+assert.ok(compact.links.filter(([p]) => p.it.code === 'BIO 1300' || p.it.key === slotFirstKey).every(([p, c]) => c.level > p.level && c.level <= p.level + 1.01), 'independent short chains stay together');
 const independent = { byKey: {}, edges: [] };
 for (let i = 0; i < 24; i++) {
   independent.byKey[`p${i}`] = { key: `p${i}` }; independent.byKey[`q${i}`] = { key: `q${i}` };
@@ -81,18 +82,18 @@ for (let i = 0; i < 24; i++) {
 }
 const packed = degreeTree(independent, 4);
 assert.equal(new Set(packed.nodes.map(n => `${n.x}:${n.level}`)).size, 48, 'packed chains do not overlap');
-assert.ok(packed.links.every(([p, c]) => p.x === c.x && c.level === p.level + 1), 'every independent chain stays adjacent');
-assert.equal(Math.max(...packed.nodes.map(n => n.level)), 11, 'short chains fill four columns compactly');
+assert.ok(packed.links.every(([p, c]) => p.x === c.x && c.level > p.level && c.level <= p.level + 1.01), 'every independent chain stays adjacent');
+assert.ok(Math.max(...packed.nodes.map(n => n.level)) <= 11, 'short chains fill four columns compactly');
 assert.deepEqual(degreeTree({ edges: [], byKey: {} }), { nodes: [], links: [] }, 'empty audit has no graph');
 assert.equal(degreeTree({ edges: [], byKey: { only: { key: 'only' } } }).nodes[0].key, 'only', 'unlinked courses remain on the canvas');
-assert.ok(degreeTree(a, NaN).nodes.every(n => n.x < 4), 'invalid width falls back to four columns');
+assert.deepEqual(degreeTree(a, NaN), degreeTree(a, 4), 'invalid width falls back to four columns');
 assert.throws(() => degreeTree({ byKey: { a: { key: 'a' }, b: { key: 'b' } }, edges: [{ from: 'a', to: 'b' }, { from: 'b', to: 'a' }] }), /cycle/);
 const sketch = { byKey: {}, edges: [['math', 'econ'], ['math', 'business'], ['econ', 'finance'], ['business', 'accounting'], ['business', 'stats'], ['accounting', 'finance'], ['accounting', 'managerial'], ['stats', 'stats2']].map(([from, to]) => ({ from, to })) };
 for (const key of new Set(sketch.edges.flatMap(e => [e.from, e.to]))) sketch.byKey[key] = { key };
 sketch.byKey.strategy = { key: 'strategy' };
 const drawing = degreeTree(sketch, 4), node = key => drawing.nodes.find(n => n.key === key);
-assert.equal(node('math').x, (node('econ').x + node('business').x) / 2, 'foundation sits over its two branches');
-assert.equal(drawing.nodes.length, 9, 'the disconnected strategy requirement stays visible');
+assert.ok(Math.abs(node('math').x - (node('econ').x + node('business').x) / 2) < .1, 'foundation sits between its two branches');
+assert.equal(drawing.nodes.filter(n => n.kind === 'course').length, 9, 'the disconnected strategy requirement stays visible');
 const sketchClasses = [
   ['MATH', '1060', 'Foundations of Math', 0], ['MATH', '1170', 'Business Math', 1], ['ECON', '2020', 'Microeconomic Principles', 1],
   ['ACCT', '2110', 'Financial Accounting', 2], ['ECON', '2100', 'Business Statistics I', 2],
@@ -134,36 +135,83 @@ await new Promise((resolve, reject) => runInNewContext(readFileSync(new URL('./b
 }));
 assert.ok(lookups.some(url => url.includes('/api/course-link?discipline=MATH&number=1170&')), 'bookmarklet requests prerequisites despite an incorrect no-prerequisites flag');
 
+const nonplanar = { byKey: {}, edges: [] };
+for (let i = 0; i < 3; i++) { nonplanar.byKey[`s${i}`] = { key: `s${i}` }; nonplanar.byKey[`t${i}`] = { key: `t${i}` }; }
+for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) nonplanar.edges.push({ from: `s${i}`, to: `t${j}` });
+const referenced = degreeTree(nonplanar, 4);
+assert.ok(referenced.nodes.some(n => n.kind === 'reference'), 'a nonplanar graph uses the approved reference fallback');
+assert.equal(referenced.nodes.filter(n => n.kind === 'course').length, 6, 'all six full cards remain unique');
+assert.equal(referenced.links.length, 9, 'references preserve all nine prerequisite relationships');
+assert.ok(degreeTree(wide, 10).nodes.some(n => n.kind === 'reference'), 'dense staggered fans use references instead of unreadable long crossings');
+assert.ok(!degreeTree(a, 4).nodes.some(n => n.kind === 'reference'), 'staggering demo cards can clear all conflicts without references');
+
 const geometry = (T, gap = 20) => {
-  const cw = 176, ch = 76, gx = gap, gy = gap + 12, minX = Math.min(0, ...T.nodes.map(n => n.x)), minL = Math.min(0, ...T.nodes.map(n => n.level));
-  const pad = routePadding(T, gx), py = 4;
-  return { cw, ch, gx, gy, pad, py, minX, minL, width: (Math.max(...T.nodes.map(n => n.x)) - minX + 1) * (cw + gx) - gx + pad * 2 };
+  const cw = 164, ch = 66, gx = gap, gy = gap + 26;
+  const minX = Math.min(0, ...T.nodes.map(n => n.x + (1 - (n.span || 1)) / 2)), minL = Math.min(0, ...T.nodes.map(n => n.level));
+  return { cw, ch, gx, gy, pad: 16, py: 4, minX, minL };
 };
-const pointOn = (s, t) => s.from.map((v, i) => (1 - t) ** 3 * v + 3 * (1 - t) ** 2 * t * s.c1[i] + 3 * (1 - t) * t ** 2 * s.c2[i] + t ** 3 * s.to[i]);
-for (const graph of [a, sketch, wide]) for (const width of [2, 4, 10, 16]) for (const gap of [20, 80]) {
-  const layout = degreeTree(graph, width), g = geometry(layout, gap), routes = treeRoutes(layout, g);
+const cross = (a, b) => a[0] * b[1] - a[1] * b[0];
+const minus = (a, b) => a.map((v, i) => v - b[i]);
+function intersects(a, b, c, d) {
+  const r = minus(b, a), s = minus(d, c), q = minus(c, a), den = cross(r, s);
+  if (Math.abs(den) < 1e-8) {
+    if (Math.abs(cross(q, r)) > 1e-8) return false;
+    const axis = Math.abs(r[0]) > Math.abs(r[1]) ? 0 : 1;
+    return Math.min(Math.max(a[axis], b[axis]), Math.max(c[axis], d[axis])) - Math.max(Math.min(a[axis], b[axis]), Math.min(c[axis], d[axis])) > 1e-6;
+  }
+  const t = cross(q, s) / den, u = cross(q, r) / den;
+  return t >= -1e-8 && t <= 1 + 1e-8 && u >= -1e-8 && u <= 1 + 1e-8;
+}
+assert.ok(intersects([0, 0], [10, 10], [0, 10], [10, 0]), 'the crossing detector rejects an X');
+assert.ok(intersects([0, 0], [0, 10], [0, 5], [0, 15]), 'the crossing detector rejects a shared stem');
+assert.ok(!intersects([0, 0], [0, 10], [6, 0], [6, 10]), 'separate lanes are accepted');
+function checkCrossings(routes) {
+  const grid = new Map();
+  routes.forEach((route, path) => {
+    assert.equal(route.segments.length, 1, 'every relationship is one straight link');
+    assert.ok(route.d.includes(' L') && !/[CQ]/.test(route.d), 'SVG contains only a move and a straight line');
+    const { from: a, to: b } = route.segments[0], tested = new Set(), cells = [];
+    assert.ok([...a, ...b].every(Number.isFinite), 'all attachment points have finite coordinates');
+    for (let x = Math.floor(Math.min(a[0], b[0]) / 32); x <= Math.floor(Math.max(a[0], b[0]) / 32); x++)
+      for (let y = Math.floor(Math.min(a[1], b[1]) / 32); y <= Math.floor(Math.max(a[1], b[1]) / 32); y++) {
+        const key = `${x}:${y}`; cells.push(key);
+        for (const other of grid.get(key) || []) if (!tested.has(other)) {
+          tested.add(other);
+          assert.ok(!intersects(a, b, other.a, other.b), `prerequisite paths ${path} and ${other.path} must not cross or overlap`);
+        }
+      }
+    const segment = { a, b, path };
+    for (const key of cells) { if (!grid.has(key)) grid.set(key, []); grid.get(key).push(segment); }
+  });
+}
+function checkCards(layout, routes, g) {
+  const boxes = layout.nodes.filter(n => n.kind !== 'route').map(n => {
+    const w = (n.span || 1) * (g.cw + g.gx) - g.gx, h = n.kind === 'reference' ? 30 : g.ch;
+    return { n, x: (n.x - g.minX) * (g.cw + g.gx) + g.pad + (g.cw - w) / 2, y: (n.level - g.minL) * (g.ch + g.gy) + g.py + (g.ch - h) / 2, w, h };
+  });
+  boxes.forEach((b, i) => {
+    for (const other of boxes.slice(i + 1)) assert.ok(b.x + b.w <= other.x + .01 || other.x + other.w <= b.x + .01 || b.y + b.h <= other.y + .01 || other.y + other.h <= b.y + .01, 'full cards and references never overlap');
+  });
+  for (const route of routes) for (const b of boxes) {
+    if (b.n === route.source.node || b.n === route.target.node) continue;
+    const x = b.x + .01, y = b.y + .01, right = b.x + b.w - .01, bottom = b.y + b.h - .01;
+    const corners = [[x, y], [right, y], [right, bottom], [x, bottom]], { from, to } = route.segments[0];
+    assert.ok(!corners.some((p, i) => intersects(from, to, p, corners[(i + 1) % 4])), 'straight links never enter another card or reference');
+  }
+}
+for (const graph of [a, sketch, wide, nonplanar]) for (const width of [2, 4, 10, 16]) for (const gap of [20, 80]) {
+  const layout = degreeTree(graph, width, gap), g = geometry(layout, gap), routes = treeRoutes(layout, g);
   const ports = new Map(layout.nodes.map(n => [n, new Set()]));
-  const boxes = layout.nodes.map(n => ({ x: (n.x - g.minX) * (g.cw + g.gx) + g.pad, y: (n.level - g.minL) * (g.ch + g.gy) + g.py }));
   for (const r of routes) {
     for (const end of [r.source, r.target]) {
       const key = end.point.join(':');
       assert.ok(!ports.get(end.node).has(key), 'every connection has its own perimeter attachment');
       ports.get(end.node).add(key);
     }
-    for (const s of r.segments) for (let t = .02; t < 1; t += .04) {
-      const [x, y] = pointOn(s, t);
-      assert.ok(boxes.every(b => x <= b.x + .01 || x >= b.x + g.cw - .01 || y <= b.y + .01 || y >= b.y + g.ch - .01), 'curved connections stay outside cards');
-    }
   }
-  for (let i = 0; i < routes.length; i++) for (const other of routes.slice(i + 1)) {
-    const r = routes[i];
-    if (r.long && other.long && r.source.node.level < other.target.node.level && other.source.node.level < r.target.node.level)
-      assert.ok(Math.abs(r.lane - other.lane) >= 6 || r.target.node.level <= other.source.node.level || other.target.node.level <= r.source.node.level, 'simultaneous long paths have separate lanes');
-  }
-  const segments = routes.flatMap(r => r.segments.map(s => [s.from, s.c1, s.c2, s.to].flat().join(':')));
-  assert.equal(new Set(segments).size, segments.length, 'connections never share an identical curve segment');
+  checkCards(layout, routes, g);
+  checkCrossings(routes);
 }
-assert.ok(treeRoutes(drawing, geometry(drawing)).some(r => ['left', 'right'].includes(r.source.side)), 'tentacles can leave the sides of cards');
 const diamond = analyze([
   { items: [{ key: 'root', code: 'ROOT', status: 'done' }] },
   { items: [{ key: 'left', code: 'LEFT', status: 'planned', prereqs: [['ROOT']] }, { key: 'right', code: 'RIGHT', status: 'planned', prereqs: [['ROOT']] }] },
@@ -196,4 +244,13 @@ const or = courseTree(cs3600, a, m.prereqs).nodes.find(n => n.kind === 'or');
 assert.deepEqual(or.options.map(o => o.code), ['MATH 2400', 'MATH 2600'], 'OR group becomes one box');
 const slot2 = m.remaining.find(x => x.after);
 assert.equal(courseTree(slot2, a, m.prereqs).nodes.find(n => n.level === -1).it.key, slot2.after, 'chained slot shows its predecessor');
-console.log('ok');
+const focusGeometry = T => {
+  const cw = 200, ch = 92, gx = 20, reach = Math.max(0, ...T.links.map(([p, c]) => Math.abs(c.x - p.x) * (cw + gx)));
+  return { ...geometry(T), cw, ch, gx, gy: Math.max(56, (ch / 2 + 4) * reach / (cw / 2 + gx) - ch), py: 0 };
+};
+for (const it of Object.values(a.byKey)) {
+  const focused = courseTree(it, a, m.prereqs);
+  const g = focusGeometry(focused), routes = treeRoutes(focused, g);
+  checkCrossings(routes); checkCards(focused, routes, g);
+}
+console.log('ok: parser, planner, unique cards, reference fallback, and zero line crossings or shared stems');

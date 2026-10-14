@@ -63,15 +63,15 @@
     <figure class="ill" aria-hidden="true">
       <svg viewBox="0 0 480 260">
         <g class="lines">
-          <path pathLength="100" style="--d:.5s" d="M94 47C114 47 115 72 135 72"/>
-          <path pathLength="100" style="--d:.6s" d="M94 117C114 117 115 152 135 152"/>
-          <path pathLength="100" style="--d:.7s" d="M94 187C114 187 115 222 135 222"/>
-          <path pathLength="100" style="--d:.9s" d="M219 72C239 72 240 47 260 47"/>
-          <path pathLength="100" style="--d:1s" d="M219 72C239 72 240 132 260 132"/>
-          <path pathLength="100" style="--d:1.05s" d="M219 152C239 152 240 132 260 132"/>
-          <path pathLength="100" style="--d:1.3s" class="p" d="M344 47C364 47 365 62 385 62"/>
-          <path pathLength="100" style="--d:1.35s" class="p" d="M344 132C364 132 365 147 385 147"/>
-          <path pathLength="100" style="--d:1.4s" class="p" d="M219 222C300 222 305 232 385 232"/>
+          <path pathLength="100" style="--d:.5s" d="M94 47L135 72"/>
+          <path pathLength="100" style="--d:.6s" d="M94 117L135 152"/>
+          <path pathLength="100" style="--d:.7s" d="M94 187L135 222"/>
+          <path pathLength="100" style="--d:.9s" d="M219 68L260 47"/>
+          <path pathLength="100" style="--d:1s" d="M219 78L260 125"/>
+          <path pathLength="100" style="--d:1.05s" d="M219 152L260 139"/>
+          <path pathLength="100" style="--d:1.3s" class="p" d="M344 47L385 62"/>
+          <path pathLength="100" style="--d:1.35s" class="p" d="M344 132L385 147"/>
+          <path pathLength="100" style="--d:1.4s" class="p" d="M219 222L385 232"/>
         </g>
         <use href="#node" class="done" x="10" y="30" width="84" height="34" style="--c:var(--g0);--d:0s"/>
         <use href="#node" class="done" x="10" y="100" width="84" height="34" style="--c:var(--g1);--d:.05s"/>
@@ -103,7 +103,7 @@
   </div>
   <div id="chart-controls" class="chart-controls" role="group" aria-label="Flowchart layout">
     <label for="layout-width">Columns <select id="layout-width"><option value="auto">Auto</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option></select></label>
-    <label for="layout-spacing">Spacing <input id="layout-spacing" type="range" min="20" max="80" step="4" value="20"><output id="layout-spacing-out" for="layout-spacing">20</output></label>
+    <label for="layout-spacing">Spacing <input id="layout-spacing" type="range" min="20" max="80" step="4" value="36"><output id="layout-spacing-out" for="layout-spacing">36</output></label>
     <label for="chart-zoom">Zoom <input id="chart-zoom" type="range" min="1" max="150" step="1" value="100"><output id="chart-zoom-out" for="chart-zoom">100%</output></label>
     <button id="fit-chart" class="btn ghost" type="button">Fit all</button>
   </div>

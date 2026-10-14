@@ -254,8 +254,8 @@ export function priorityColors(count, most) {
   return { fill: `rgb(${rgb.join(' ')})`, ink: luminance > .179 ? '#000' : '#fff' };
 }
 
-// Place cards around their connections. Thin guide slots carry long paths through intermediate rows.
-export function degreeTree(a, width = 4) {
+// Place shared courses between their chains. Invisible slots keep room for long straight links.
+export function degreeTree(a, width = 4, gap = 36) {
   width = Math.max(2, Math.min(16, Math.round(width) || 4));
   const up = {}, neighbors = {};
   for (const e of a.edges) {
@@ -276,14 +276,23 @@ export function degreeTree(a, width = 4) {
       if (!ready.length) throw new Error('Prerequisite links contain a cycle.');
       ready.forEach((key, x) => { placed.set(key, { key, kind: 'course', it: a.byKey[key], level, x, span: 1 }); todo.delete(key); });
     }
-    const references = new Set();
+    const references = new Map();
+    const fanOut = new Map(), fanIn = new Map();
+    for (const edge of edges) {
+      const out = (fanOut.get(edge.from) || 0) + 1, into = (fanIn.get(edge.to) || 0) + 1;
+      fanOut.set(edge.from, out); fanIn.set(edge.to, into);
+      if ((neighbors[edge.from]?.length || 0) - (up[edge.from]?.length || 0) > width * 2 && out > width) references.set(edge, 'from');
+      else if ((up[edge.to]?.length || 0) > width * 2 && into > width) references.set(edge, 'to');
+    }
     const attempted = new Set();
     let drawing, trial, moves = 0;
     for (;;) {
       const nodes = [...placed.values()], links = [], steps = [];
       edges.forEach((edge, id) => {
-        const from = placed.get(edge.from);
-        const to = references.has(edge) ? { key: `ref:${id}`, kind: 'reference', it: a.byKey[edge.to], level: from.level + 1, span: .75 } : placed.get(edge.to);
+        let from = placed.get(edge.from), to = placed.get(edge.to);
+        if (references.get(edge) === 'from') from = { key: `ref:${id}`, kind: 'reference', it: a.byKey[edge.from], level: to.level - 1, span: .75 };
+        if (references.get(edge) === 'to') to = { key: `ref:${id}`, kind: 'reference', it: a.byKey[edge.to], level: from.level + 1, span: .75 };
+        if (from.kind === 'reference') nodes.push(from);
         if (to.kind === 'reference') nodes.push(to);
         const guides = [];
         for (let level = from.level + 1; level < to.level; level++) {
@@ -363,6 +372,38 @@ export function degreeTree(a, width = 4) {
       }
       rows.forEach((row, i) => row.splice(0, row.length, ...best[i]));
       clashes = conflicts();
+      const span = Math.max(...rows.map(row => row.reduce((sum, n) => sum + n.span, 0)));
+      for (const row of rows) {
+        let cursor = (span - row.reduce((sum, n) => sum + n.span, 0)) / 2;
+        for (const n of row) { n.x = cursor + (n.span - 1) / 2; cursor += n.span; }
+      }
+      if (!clashes.length) {
+        // Project each row onto its existing order while pulling guide slots onto the actual straight links.
+        for (let pass = 0; pass < 60; pass++) {
+          const desired = new Map(nodes.map(n => [n, n.x]));
+          for (const [from, to, , guides] of links) for (const n of guides)
+            desired.set(n, from.x + (to.x - from.x) * (n.level - from.level) / (to.level - from.level));
+          for (const n of nodes.filter(n => n.kind !== 'route')) {
+            const connected = [...incoming.get(n), ...outgoing.get(n)];
+            if (connected.length) desired.set(n, .5 * n.x + .5 * connected.reduce((sum, p) => sum + p.x, 0) / connected.length);
+          }
+          for (const row of rows) {
+            const blocks = []; let offset = 0, previous;
+            for (const n of row) {
+              if (previous) offset += (previous.span + n.span) / 2;
+              const weight = n.kind === 'route' ? 8 : 1;
+              const block = { nodes: [[n, offset]], weight, value: (desired.get(n) - offset) * weight };
+              blocks.push(block); previous = n;
+              while (blocks.length > 1 && blocks.at(-2).value / blocks.at(-2).weight > blocks.at(-1).value / blocks.at(-1).weight) {
+                const right = blocks.pop(), left = blocks.at(-1);
+                left.nodes.push(...right.nodes); left.weight += right.weight; left.value += right.value;
+              }
+            }
+            for (const block of blocks) for (const [n, offset] of block.nodes) n.x = block.value / block.weight + offset;
+          }
+        }
+        clashes = straightConflicts({ nodes, links }, gap);
+      }
       if (clashes.length) {
         if (trial) {
           if (clashes.length >= trial.before) {
@@ -396,15 +437,21 @@ export function degreeTree(a, width = 4) {
         const counts = new Map();
         for (const pair of clashes) for (const e of pair) if (!references.has(e)) counts.set(e, (counts.get(e) || 0) + 1);
         const worst = [...counts].sort((p, q) => q[1] - p[1])[0]?.[0];
-        if (!worst) throw new Error('Could not separate prerequisite branches.');
-        references.add(worst); continue;
+        if (!worst) {
+          // Wide reference fans need more vertical room so the diagonals clear neighboring labels.
+          const reach = Math.max(0, ...links.map(([p, c]) => Math.abs(c.x - p.x) * (164 + gap)));
+          const factor = Math.max(2, Math.ceil((66 / 2 + 4) * reach / (164 / 2 + gap) / (66 + gap + 26)));
+          nodes.forEach(n => n.level *= factor);
+          if (straightConflicts({ nodes, links }, gap).length) throw new Error('Could not separate prerequisite branches.');
+          const left = Math.min(...nodes.map(n => n.x + (1 - n.span) / 2));
+          nodes.forEach(n => n.x -= left);
+          drawing = { nodes, links, span: Math.ceil(Math.max(...nodes.map(n => n.x + (1 + n.span) / 2))), height: Math.max(...nodes.map(n => n.level)) + 1 }; break;
+        }
+        references.set(worst, (neighbors[worst.from]?.length || 0) > (neighbors[worst.to]?.length || 0) ? 'from' : 'to'); continue;
       }
-      const span = Math.max(...rows.map(row => row.reduce((sum, n) => sum + n.span, 0)));
-      for (const row of rows) {
-        let cursor = (span - row.reduce((sum, n) => sum + n.span, 0)) / 2;
-        for (const n of row) { n.x = cursor + (n.span - 1) / 2; cursor += n.span; }
-      }
-      drawing = { nodes, links, span: Math.ceil(span), height: rows.length }; break;
+      const left = Math.min(...nodes.map(n => n.x + (1 - n.span) / 2));
+      nodes.forEach(n => n.x -= left);
+      drawing = { nodes, links, span: Math.ceil(Math.max(...nodes.map(n => n.x + (1 + n.span) / 2))), height: rows.length }; break;
     }
     parts.push(drawing);
   }
@@ -421,43 +468,76 @@ export function degreeTree(a, width = 4) {
     counts.forEach((count, level) => { rowCounts[top + level] = (rowCounts[top + level] || 0) + count; });
     links.push(...part.links); bottom.fill(top + part.height, left, left + part.span);
   }
+  const visible = nodes.filter(n => n.kind !== 'route'), origin = new Map(visible.map(n => [n, n.level]));
+  // Small degrees can stagger cards within their bands to shorten links without changing the chain order.
+  if (visible.length <= 70) for (let pass = 0; pass < 4; pass++) for (const n of visible) {
+    if (n.kind !== 'course') continue;
+    const connected = links.filter(([p, c]) => p === n || c === n);
+    if (!connected.length) continue;
+    const length = () => connected.reduce((sum, [p, c]) => sum + Math.hypot((p.x - c.x) * (164 + gap), (p.level - c.level) * (92 + gap)), 0);
+    let best = length(), x = n.x, level = n.level;
+    for (const [dx, dy] of [[-.125, 0], [.125, 0], [0, -.1], [0, .1]]) {
+      n.x = x + dx; n.level = level + dy;
+      if (n.x >= 0 && n.level >= 0 && Math.abs(n.level - origin.get(n)) <= .201 && connected.every(([p, c]) => p.level < c.level)
+        && length() < best - .01 && !straightConflicts({ nodes: visible, links }, gap).length) { best = length(); x = n.x; level = n.level; }
+    }
+    n.x = x; n.level = level;
+  }
   return { nodes, links };
 }
 
-// Ordered row boundaries make every curve stay between its neighbours. Guide slots are not cards.
+// One straight segment per relationship, clipped to the facing card edges.
 export function treeRoutes(T, { cw, ch, gx, gy, pad, py, minX, minL }) {
-  const centre = n => (n.x - minX) * (cw + gx) + pad + cw / 2;
-  const top = n => (n.level - minL) * (ch + gy) + py;
-  const incoming = new Map(T.nodes.map(n => [n, []])), outgoing = new Map(T.nodes.map(n => [n, []]));
-  const paths = T.links.map(([from, to, , guides = []], i) => {
-    const p = { chain: [from, ...guides, to], segments: [], long: guides.length > 0, i };
-    outgoing.get(from).push(p); incoming.get(to).push(p); return p;
+  const box = n => {
+    const w = n.kind === 'reference' ? n.span * (cw + gx) - gx : cw, h = n.kind === 'reference' ? 30 : ch;
+    return { x: (n.x - minX) * (cw + gx) + pad + (cw - w) / 2, y: (n.level - minL) * (ch + gy) + py + (ch - h) / 2, w, h };
+  };
+  return T.links.map(([from, to]) => {
+    const a = box(from), b = box(to), dx = b.x + b.w / 2 - a.x - a.w / 2, dy = b.y + b.h / 2 - a.y - a.h / 2;
+    const port = (node, rect, direction) => {
+      const horizontal = dx ? rect.w / Math.abs(dx) : Infinity, vertical = dy ? rect.h / Math.abs(dy) : Infinity;
+      const scale = Math.min(horizontal, vertical) / 2;
+      return { node, side: horizontal < vertical && dx ? (dx * direction > 0 ? 'right' : 'left') : (dy * direction > 0 ? 'bottom' : 'top'),
+        point: [rect.x + rect.w / 2 + dx * scale * direction, rect.y + rect.h / 2 + dy * scale * direction] };
+    };
+    const source = port(from, a, 1), target = port(to, b, -1);
+    return { source, target, segments: [{ from: source.point, to: target.point }], d: `M${source.point.join(',')} L${target.point.join(',')}` };
   });
-  for (const [node, list] of outgoing) {
-    list.sort((p, q) => centre(p.chain[1]) - centre(q.chain[1]) || p.i - q.i);
-    list.forEach((p, i) => { p.source = { node, side: 'bottom', point: [centre(node) - cw / 2 + 12 + (cw - 24) * (i + 1) / (list.length + 1), top(node) + ch] }; });
+}
+
+function straightConflicts(T, gap) {
+  const cw = 164, ch = 66, gx = gap, gy = gap + 26;
+  const routes = treeRoutes(T, { cw, ch, gx, gy, pad: 0, py: 0, minX: 0, minL: 0 });
+  const cross = (a, b) => a[0] * b[1] - a[1] * b[0], minus = (a, b) => a.map((v, i) => v - b[i]);
+  const intersects = (a, b, c, d) => {
+    const r = minus(b, a), s = minus(d, c), q = minus(c, a), den = cross(r, s);
+    if (Math.abs(den) < 1e-8) {
+      if (Math.abs(cross(q, r)) > 1e-8) return false;
+      const axis = Math.abs(r[0]) > Math.abs(r[1]) ? 0 : 1;
+      return Math.min(Math.max(a[axis], b[axis]), Math.max(c[axis], d[axis])) - Math.max(Math.min(a[axis], b[axis]), Math.min(c[axis], d[axis])) > 1e-6;
+    }
+    const t = cross(q, s) / den, u = cross(q, r) / den;
+    return t >= -1e-8 && t <= 1 + 1e-8 && u >= -1e-8 && u <= 1 + 1e-8;
+  };
+  const boxes = T.nodes.filter(n => n.kind !== 'route').map(n => {
+    const w = n.kind === 'reference' ? n.span * (cw + gx) - gx : cw, h = n.kind === 'reference' ? 30 : ch;
+    return { n, x: n.x * (cw + gx) + (cw - w) / 2, y: n.level * (ch + gy) + (ch - h) / 2, w, h };
+  });
+  const result = [];
+  for (let i = 0; i < boxes.length; i++) for (const b of boxes.slice(i + 1)) {
+    const a = boxes[i];
+    if (a.x < b.x + b.w + gap - 1e-6 && a.x + a.w + gap > b.x + 1e-6 && a.y < b.y + b.h + gap - 1e-6 && a.y + a.h + gap > b.y + 1e-6)
+      result.push(T.links.filter(([p, c]) => p === a.n || c === a.n || p === b.n || c === b.n).map(link => link[2]));
   }
-  for (const [node, list] of incoming) {
-    list.sort((p, q) => centre(p.chain.at(-2)) - centre(q.chain.at(-2)) || p.i - q.i);
-    const width = node.kind === 'reference' ? node.span * (cw + gx) - gx : cw;
-    list.forEach((p, i) => { p.target = { node, side: 'top', point: [centre(node) - width / 2 + 12 + (width - 24) * (i + 1) / (list.length + 1), top(node) + (node.kind === 'reference' ? (ch - 30) / 2 : 0)] }; });
-  }
-  for (const path of paths) {
-    const curve = (from, c1, c2, to) => path.segments.push({ from, c1, c2, to });
-    let start = path.source.point;
-    path.chain.slice(1).forEach((n, i) => {
-      const last = i === path.chain.length - 2;
-      const end = last ? [path.target.point[0], top(n)] : [centre(n), top(n)];
-      const middle = (start[1] + end[1]) / 2;
-      curve(start, [start[0], middle], [end[0], middle], end);
-      if (!last) {
-        const bottom = [centre(n), top(n) + ch];
-        curve(end, [end[0], end[1] + ch / 3], [bottom[0], bottom[1] - ch / 3], bottom); start = bottom;
-      } else if (n.kind === 'reference') curve(end, end, path.target.point, path.target.point);
-    });
-    path.d = `M${path.source.point.join(',')} ` + path.segments.map(s => `C${s.c1.join(',')} ${s.c2.join(',')} ${s.to.join(',')}`).join(' ');
-  }
-  return paths;
+  routes.forEach((route, i) => {
+    const { from, to } = route.segments[0];
+    for (let j = 0; j < i; j++) if (intersects(from, to, routes[j].source.point, routes[j].target.point)) result.push([T.links[i][2], T.links[j][2]]);
+    for (const b of boxes) if (b.n !== route.source.node && b.n !== route.target.node) {
+      const corners = [[b.x, b.y], [b.x + b.w, b.y], [b.x + b.w, b.y + b.h], [b.x, b.y + b.h]];
+      if (corners.some((p, k) => intersects(from, to, p, corners[(k + 1) % 4]))) { result.push([T.links[i][2]]); break; }
+    }
+  });
+  return result;
 }
 
 // A course's prerequisite tree (rows above) and what it unlocks (rows below), for the course modal. Shared courses
