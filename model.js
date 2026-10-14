@@ -220,7 +220,7 @@ export function analyze(cols) {
   const d = k => (depth[k] ??= 1 + Math.max(0, ...(down[k] || []).map(d)));
   const r = k => (reach[k] ??= new Set((down[k] || []).flatMap(t => [t, ...r(t)])));
   const open = placed.map(x => x.it).filter(it => it.status !== 'done');
-  const info = Object.fromEntries(open.map(it => [it.key, { unlocks: r(it.key).size, depth: d(it.key) }]));
+  const info = Object.fromEntries(placed.map(({ it }) => [it.key, { unlocks: r(it.key).size, depth: d(it.key) }]));
   const necks = open.filter(it => info[it.key].unlocks).map(it => ({ key: it.key, ...info[it.key] }))
     .sort((a, b) => b.unlocks - a.unlocks || b.depth - a.depth);
   const critical = [], deepest = keys => keys.reduce((a, k) => (!a || d(k) > d(a) ? k : a), null);
@@ -228,18 +228,29 @@ export function analyze(cols) {
   return { edges, needs, missing, info, necks, critical: critical.length > 1 ? critical : [], byKey };
 }
 
+// Higher dependency counts get darker cards; text keeps at least 4.5:1 contrast.
+export function priorityColors(count, most) {
+  const t = most > 0 ? Math.max(0, Math.min(1, count / most)) : 0;
+  const stops = [[219, 238, 205], [229, 185, 88], [150, 66, 14]];
+  const i = t < .5 ? 0 : 1, f = t < .5 ? t * 2 : (t - .5) * 2;
+  const rgb = stops[i].map((v, c) => Math.round(v + (stops[i + 1][c] - v) * f));
+  const linear = rgb.map(v => v / 255 <= .04045 ? v / 255 / 12.92 : ((v / 255 + .055) / 1.055) ** 2.4);
+  const luminance = linear.reduce((n, v, c) => n + v * [.2126, .7152, .0722][c], 0);
+  return { fill: `rgb(${rgb.join(' ')})`, ink: luminance > .179 ? '#000' : '#fff' };
+}
+
 // Continue ready branches in nearby columns; capacity can stagger courses with the same prerequisite depth.
 export function degreeTree(a, width = 4) {
-  width = Math.max(2, Math.min(10, Math.round(width) || 4));
+  width = Math.max(2, Math.min(16, Math.round(width) || 4));
   const up = {}, neighbors = {};
   for (const e of a.edges) {
     (up[e.to] ||= []).push(e.from);
     (neighbors[e.from] ||= []).push(e.to); (neighbors[e.to] ||= []).push(e.from);
   }
-  const unseen = new Set(Object.keys(a.byKey).filter(k => neighbors[k])), parts = [];
+  const unseen = new Set(Object.keys(a.byKey)), parts = [];
   while (unseen.size) {
     const part = [unseen.values().next().value]; unseen.delete(part[0]);
-    for (let i = 0; i < part.length; i++) for (const key of neighbors[part[i]])
+    for (let i = 0; i < part.length; i++) for (const key of neighbors[part[i]] || [])
       if (unseen.delete(key)) part.push(key);
     parts.push(part);
   }
@@ -255,12 +266,19 @@ export function degreeTree(a, width = 4) {
       for (const key of ready) {
         const parents = (up[key] || []).map(k => byKey[k]);
         const target = parents.length ? parents.reduce((sum, n) => sum + n.x, 0) / parents.length : free[0];
-        const x = free.reduce((best, col) => Math.abs(col - target) < Math.abs(best - target) ? col : best);
+        const x = free.reduce((best, col) => Math.abs(col - target) < Math.abs(best - target)
+          || (parents.length === 1 && Math.abs(col - target) === Math.abs(best - target) && col > best) ? col : best);
         free.splice(free.indexOf(x), 1);
         const n = { key, kind: 'course', it: a.byKey[key], level, x };
         part.push(n); byKey[key] = n; todo.delete(key);
       }
     }
+    const roots = part.filter(n => n.level === 0).map(n => {
+      const children = part.filter(c => up[c.key]?.includes(n.key));
+      return { n, target: children.length ? (Math.min(...children.map(c => c.x)) + Math.max(...children.map(c => c.x))) / 2 : n.x };
+    }).sort((p, q) => p.target - q.target);
+    let previous = -1;
+    roots.forEach(({ n, target }, i) => { n.x = previous = Math.max(previous + 1, Math.min(target, width - roots.length + i)); });
     // Pack independent chains as blocks instead of stretching them to match unrelated branches.
     const span = Math.max(...part.map(n => n.x)) + 1, height = Math.max(...part.map(n => n.level)) + 1;
     let left = 0, top = Infinity;

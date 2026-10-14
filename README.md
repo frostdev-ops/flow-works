@@ -10,13 +10,13 @@ Flow-works turns an Ellucian Degree Works audit into a top-to-bottom prerequisit
 
 ## The flowchart
 
-The whole-degree view uses the same compact cards and top-to-bottom connections as the course detail modal. Branches continue downward in nearby columns, and courses at the same prerequisite depth can stagger onto different rows. Rows are not terms: each card shows its own status, credits, and completed or suggested term. Shared prerequisites appear once, and long connections travel between columns so they never run through a card.
+The whole degree fits into one canvas on load, including courses without prerequisite links. Branches stay close together, their starting courses sit above the fork, and shared prerequisites appear once. Courses can stagger instead of stretching every branch to the same row. Rows are not terms.
 
-Use **Columns** to choose a narrower or wider layout, **Spacing** to bring cards closer together, and **Zoom** or **Fit width** to size the chart for your screen. These preferences stay in your browser.
+Card color shows how many later courses depend on a course, directly or through another prerequisite: **dark orange for the biggest bottlenecks, through amber to green for fewer dependents**. Each downstream course counts once, even when several paths lead to it. Completed courses retain their dependency color and have a Done badge. Status, term, and dependency count are also available as text.
 
-Hover or keyboard-focus a course to trace its prerequisites and what it unlocks. Click it to open a focused flowchart of its prerequisite tree and the courses that follow it; click a course in that chart to follow the chain, with breadcrumbs back.
+**Columns: Auto** balances the chart for your screen. Choose a column count or change **Spacing** to arrange it yourself. **Fit all** fits both width and height; **Zoom** lets you inspect more closely. Column and spacing preferences stay in your browser. Very large degrees fit at a smaller scale; select any course to read its details at full size.
 
-Courses without prerequisite connections stay visible below the chart, grouped by term. This includes completed courses, electives, and remaining choice requirements. The chart never silently drops them.
+Hover or keyboard-focus a course to trace its prerequisites and what it unlocks. Click it to open its prerequisite tree and the courses that follow it, with breadcrumbs back. Degree progress and requirement groups are available just below the canvas.
 
 **Plan insights & prerequisites to check**, below the chart, contains the critical path, bottlenecks, and missing prerequisites. Drag the max-credits slider to update the suggested terms throughout the chart and the course modals.
 

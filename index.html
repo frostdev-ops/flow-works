@@ -96,6 +96,20 @@
 </main>
 
 <main id="chart" hidden>
+  <div class="hint">
+    <h1 id="chart-title">Degree flowchart</h1>
+    <span id="viewnote" class="viewnote"></span>
+    <span class="keys"><span><i class="k done"></i>Completed</span><span><i class="k current"></i>In progress</span><span><i class="k planned"></i>Planned</span><span><i class="k crit"></i>Critical path</span></span>
+  </div>
+  <div id="chart-controls" class="chart-controls" role="group" aria-label="Flowchart layout">
+    <label for="layout-width">Columns <select id="layout-width"><option value="auto">Auto</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option></select></label>
+    <label for="layout-spacing">Spacing <input id="layout-spacing" type="range" min="20" max="80" step="4" value="20"><output id="layout-spacing-out" for="layout-spacing">20</output></label>
+    <label for="chart-zoom">Zoom <input id="chart-zoom" type="range" min="1" max="150" step="1" value="100"><output id="chart-zoom-out" for="chart-zoom">100%</output></label>
+    <button id="fit-chart" class="btn ghost" type="button">Fit all</button>
+  </div>
+  <div class="priority-key" aria-label="Card color: green for fewer dependent courses, dark orange for more dependent courses"><span>Fewer dependents</span><i aria-hidden="true"></i><span>More dependents</span></div>
+  <section id="board" class="board" aria-label="Degree flowchart" tabindex="0"><div id="track" class="track"></div></section>
+  <details class="degree-details"><summary>Degree progress &amp; requirement groups</summary>
   <section class="summary">
     <div class="ring">
       <svg viewBox="0 0 120 120" aria-hidden="true">
@@ -112,19 +126,7 @@
     </div>
     <ul id="legend" class="legend" aria-label="Requirement groups"></ul>
   </section>
-  <div class="hint">
-    <h2>Degree flowchart</h2>
-    <span id="viewnote" class="viewnote"></span>
-    <span class="keys"><span><i class="k done"></i>Completed</span><span><i class="k current"></i>In progress</span><span><i class="k planned"></i>Planned</span><span><i class="k crit"></i>Critical path</span></span>
-  </div>
-  <div id="chart-controls" class="chart-controls" role="group" aria-label="Flowchart layout">
-    <label for="layout-width">Columns <input id="layout-width" type="range" min="2" max="10" step="1" value="4"><output id="layout-width-out" for="layout-width">4</output></label>
-    <label for="layout-spacing">Spacing <input id="layout-spacing" type="range" min="20" max="80" step="4" value="32"><output id="layout-spacing-out" for="layout-spacing">32</output></label>
-    <label for="chart-zoom">Zoom <input id="chart-zoom" type="range" min="10" max="150" step="5" value="100"><output id="chart-zoom-out" for="chart-zoom">100%</output></label>
-    <button id="fit-chart" class="btn ghost" type="button">Fit width</button>
-  </div>
-  <section id="board" class="board" aria-label="Degree flowchart" tabindex="0"><div id="track" class="track"></div></section>
-  <section id="requirements" class="requirements" aria-label="Other courses and graduation"></section>
+  </details>
   <details class="plan-insights">
     <summary>Plan insights &amp; prerequisites to check</summary>
     <section id="insights" class="insights" aria-label="Prerequisite insights" hidden></section>

@@ -1,9 +1,8 @@
-import { parseAudit, columns, analyze, degreeTree, courseTree } from './model.js';
+import { parseAudit, columns, analyze, degreeTree, courseTree, priorityColors } from './model.js';
 
 const $ = s => document.querySelector(s);
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const EASE = 'cubic-bezier(.2,.8,.2,1)';
-const KIND = { transfer: 'Transfer', past: 'Completed', current: 'In progress', future: 'Planned', layer: 'Prerequisite depth' };
 const STATUS = { done: 'Completed', current: 'In progress', registered: 'Registered', planned: 'Planned' };
 const store = {
   get: k => { try { return localStorage.getItem(k); } catch { return null; } },
@@ -23,11 +22,13 @@ const svg = (tag, attrs = {}) => {
   return el;
 };
 
-let model, A, edges = [], maxCredits = +store.get('flowworks:credits') || 15;
+let model, A, edges = [], most = 0, fit = true, maxCredits = +store.get('flowworks:credits') || 15;
 const color = g => {
   const i = model.groups.findIndex(x => x.id === g);
   return g === 'free' || i < 0 ? 'var(--gfree)' : `var(--g${i % 8})`;
 };
+const priority = it => priorityColors(A.info[it?.key]?.unlocks || 0, most);
+const cardStyle = it => { const p = priority(it); return `--c:${p.fill};--card-ink:${p.ink}`; };
 
 function toast(msg) {
   const t = $('#toast');
@@ -82,6 +83,8 @@ function show(data, save) {
   $('#chart').hidden = false;
   $('.tools').hidden = false;
   document.title = `${model.title} · Flow-works`;
+  $('#chart-title').textContent = model.title;
+  fit = true;
   summary();
   board();
 }
@@ -145,23 +148,29 @@ function board() {
   const terms = columns(model, maxCredits).map(c => ({ ...c, items: c.items.map(it => ({ ...it, termLabel: c.label })) }));
   A = analyze(terms);
   edges = A.edges;
-  const grad = stats(terms), T = degreeTree(A, +$('#layout-width').value), linked = new Set(T.nodes.map(n => n.it.key));
+  most = Math.max(0, ...Object.values(A.info).map(n => n.unlocks));
+  stats(terms);
+  const count = Object.keys(A.byKey).length;
+  $('#viewnote').textContent = count
+    ? `${plural(count, 'course')} · Prerequisites flow down. Select a course for details.`
+    : 'No courses were included in this audit.';
+  const pane = $('#board');
+  pane.hidden = $('#chart-controls').hidden = !count;
+  if (!count) { $('#track').replaceChildren(); insights(); return; }
+  pane.style.height = Math.max(240, innerHeight - (pane.getBoundingClientRect().top + scrollY) - 16) + 'px';
+  const size = chartSpace();
+  let T;
+  if ($('#layout-width').value === 'auto') {
+    let best = -1;
+    for (let width = 2; width <= 16; width++) {
+      const candidate = degreeTree(A, width), { width: w, height: ht } = treeSize(candidate);
+      const score = Math.min(size.width / w, size.height / ht);
+      if (score > best) { T = candidate; best = score; }
+    }
+  } else T = degreeTree(A, +$('#layout-width').value);
   insights();
-  $('#viewnote').textContent = T.nodes.length
-    ? 'Prerequisites flow down; rows are not terms. Adjust the layout, or select a course to focus on its chain.'
-    : 'No prerequisite links were included in this audit. All your courses and requirements are listed below.';
-  $('#track').replaceChildren(...(T.nodes.length ? [tree(T)] : []));
-  $('#board').hidden = $('#chart-controls').hidden = !T.nodes.length;
-  zoomChart();
-  const other = terms.map(c => ({ ...c, items: c.items.filter(it => !linked.has(it.key)) })).filter(c => c.items.length);
-  $('#requirements').replaceChildren(
-    ...(other.length ? [h('header', {}, h('h2', {}, T.nodes.length ? 'Other courses & requirements' : 'Courses & requirements'),
-      h('p', {}, 'No prerequisite connections in this audit. These still count toward your degree.'))] : []),
-    ...other.map(c => h('section', { class: 'requirement-term' },
-      h('h3', {}, c.label, h('span', {}, KIND[c.kind])),
-      h('div', { class: 'course-grid' }, c.items.map(it => courseCard({ it }, false))))),
-    h('footer', { class: 'degree-goal' }, h('span', { 'aria-hidden': 'true' }, '↓'),
-      h('div', {}, h('h2', {}, 'Graduation'), h('p', {}, `${grad} · ${model.total} credits · estimated`))));
+  $('#track').replaceChildren(tree(T));
+  fit ? fitChart() : zoomChart();
   focusOn(null);
 }
 
@@ -173,7 +182,7 @@ function jump(key) {
   el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center', inline: 'center' });
   el.focus({ preventScroll: true });
 }
-const chip = (it, extra) => h('button', { type: 'button', class: 'chip', style: `--c:${color(it.group)}`, onclick: () => jump(it.key) }, it.code || it.title, extra);
+const chip = (it, extra) => h('button', { type: 'button', class: 'chip', style: cardStyle(it), onclick: () => jump(it.key) }, it.code || it.title, extra);
 
 function insights() {
   const parts = [], by = A.byKey;
@@ -233,7 +242,7 @@ function detail(it, keep) {
   const ups = T.nodes.filter(n => n.level < 0).length, downs = T.nodes.filter(n => n.level > 0).length;
   const back = (t, i) => h('button', { type: 'button', onclick: () => { trail = trail.slice(0, i); detail(t, true); } }, t.code || short(t.title, 24));
   const scroller = h('div', { class: 'tree-scroll' }, tree(T, it));
-  d.replaceChildren(h('form', { method: 'dialog', class: 'course', style: `--c:${color(it.group)}` },
+  d.replaceChildren(h('form', { method: 'dialog', class: 'course', style: cardStyle(it) },
     h('button', { class: 'x', 'aria-label': 'Close' }, '×'),
     trail.length > 1 && h('nav', { class: 'trail', 'aria-label': 'Courses you opened' },
       trail.slice(0, -1).flatMap((t, i) => [back(t, i), h('span', { 'aria-hidden': 'true' }, '›')]), h('b', {}, it.code || short(it.title, 24))),
@@ -257,23 +266,32 @@ function detail(it, keep) {
   scroller.scrollTop += r.top + r.height / 2 - (v.top + v.height / 2);
 }
 
-function tree(T, rootIt) {
+function treeSize(T, rootIt) {
   const xs = T.nodes.map(n => n.x), lv = T.nodes.map(n => n.level);
-  const minX = Math.min(...xs), minL = Math.min(...lv);
-  const gx = rootIt ? TGX : +$('#layout-spacing').value, gy = rootIt ? TGY : gx + 20, pad = rootIt ? 0 : gx / 2 + 4;
-  const Wd = (Math.max(...xs) - minX + 1) * (TW + gx) - gx + pad * 2, Ht = (Math.max(...lv) - minL + 1) * (TH + gy) - gy;
-  const at = n => [(n.x - minX) * (TW + gx) + pad, (n.level - minL) * (TH + gy)];
-  const box = h('div', { class: 'tree', style: `width:${Wd}px;height:${Ht}px` });
+  const minX = Math.min(0, ...xs), minL = Math.min(0, ...lv);
+  const cw = rootIt ? TW : 176, ch = rootIt ? TH : 76;
+  const gx = rootIt ? TGX : +$('#layout-spacing').value, gy = rootIt ? TGY : gx + 12, pad = rootIt ? 0 : gx / 2 + 4;
+  const py = rootIt ? 0 : 4;
+  return { cw, ch, gx, gy, pad, py, minX, minL,
+    width: (Math.max(0, ...xs) - minX + 1) * (cw + gx) - gx + pad * 2,
+    height: (Math.max(0, ...lv) - minL + 1) * (ch + gy) - gy + py * 2 };
+}
+
+function tree(T, rootIt) {
+  const { cw, ch, gx, gy, pad, py, minX, minL, width: Wd, height: Ht } = treeSize(T, rootIt);
+  const at = n => [(n.x - minX) * (cw + gx) + pad, (n.level - minL) * (ch + gy) + py];
+  const box = h('div', { class: `tree${rootIt ? '' : ' overview'}`, style: `width:${Wd}px;height:${Ht}px` });
   const lines = svg('svg', { class: 'tree-lines', width: Wd, height: Ht, 'aria-hidden': 'true' });
   const state = n => n.kind === 'or' ? (n.options.find(o => o.code === n.pick)?.it?.status || 'missing') : n.it?.status || 'missing';
   const ring = n => Math.abs(n.level);
   const critLinks = new Set(A.critical.slice(1).map((k, i) => A.critical[i] + '>' + k));
   T.links.forEach(([up, down, edge]) => {
-    const [x1, y1] = at(up), [x2, y2] = at(down), ax = x1 + TW / 2, ay = y1 + TH, bx = x2 + TW / 2, m = (ay + y2) / 2;
+    const [x1, y1] = at(up), [x2, y2] = at(down), ax = x1 + cw / 2, ay = y1 + ch, bx = x2 + cw / 2, m = (ay + y2) / 2;
     let path = `M${ax},${ay} C${ax},${m} ${bx},${m} ${bx},${y2}`;
     if (down.level - up.level > 1) {
       // Long connections travel in the gutters between fixed columns, without reserving card-sized gaps.
-      const lane = bx < ax ? x1 - gx / 2 : x1 + TW + gx / 2, out = ay + gy / 2, into = y2 - gy / 2;
+      const column = bx < ax ? Math.ceil(up.x - minX) - .5 : Math.floor(up.x - minX) + .5;
+      const lane = column * (cw + gx) + pad + cw / 2, out = ay + gy / 2, into = y2 - gy / 2;
       path = `M${ax},${ay} C${ax},${out} ${lane},${ay} ${lane},${out} L${lane},${into} C${lane},${y2} ${bx},${into} ${bx},${y2}`;
     }
     const from = edge?.from || up.it?.key, to = edge?.to || down.it?.key;
@@ -282,7 +300,7 @@ function tree(T, rootIt) {
       : state(up) === 'missing' ? 'miss' : state(down) === 'planned' ? 'planned' : '';
     const p = svg('path', { d: path, class: cls,
       'data-from': from || '', 'data-to': to || '',
-      style: `--c:${color((edge ? A.byKey[from] : up.it || up.options?.find(o => o.code === up.pick)?.it || {}).group)}` });
+      style: '--c:var(--muted)' });
     lines.append(p);
     if (!reduce) requestAnimationFrame(() => {
       const len = p.getTotalLength();
@@ -310,34 +328,58 @@ const CHIP = { done: '✓ Done', current: 'Now', registered: 'Registered', plann
 function courseCard(n, isRoot) {
   const it = n.it || stub(n.code), s = it.status;
   const missing = A.needs[it.key]?.some(n => n.state === 'miss');
-  const label = [it.code, it.title, CHIP[s], it.credits && `${it.credits} credits`, it.termLabel, missing && 'Prerequisite missing from your record or plan'].filter(Boolean).join(' · ');
+  const unlocks = A.info[it.key]?.unlocks || 0;
+  const label = [it.code, it.title, CHIP[s], it.credits && `${it.credits} credits`, it.termLabel,
+    `${plural(unlocks, 'later course')} depend on this`, missing && 'Prerequisite missing from your record or plan'].filter(Boolean).join(' · ');
   return h('button', {
-    type: 'button', 'data-key': it.key, class: `tcard ${s}${isRoot ? ' root' : ''}${A.critical.includes(it.key) ? ' crit' : ''}`, style: `--c:${color(it.group)}`,
+    type: 'button', 'data-key': it.key, class: `tcard ${s}${isRoot ? ' root' : ''}${A.critical.includes(it.key) ? ' crit' : ''}`, style: cardStyle(it),
     onclick: isRoot ? null : () => detail(it, $('#detail').open), 'aria-label': label, title: label,
     onmouseenter: () => focusOn(it.key), onmouseleave: () => focusOn(null),
     onfocus: () => focusOn(it.key), onblur: () => focusOn(null),
   }, h('span', { class: 'top' }, h('span', { class: 'code' }, it.code || 'Choose'), h('span', { class: 'chip ' + s }, CHIP[s] || s)),
   h('span', { class: 'title' }, s === 'missing' ? 'Not on your record or plan' : it.title),
   h('span', { class: 'meta' }, missing && h('span', { class: 'missing-note', title: 'Prerequisite missing from your record or plan' }, '! '),
-    s === 'missing' ? 'Check with your advisor' : [it.credits && `${it.credits} cr`, it.transfer ? 'Transfer' : it.termLabel].filter(Boolean).join(' · ')));
+    s === 'missing' ? 'Check with your advisor' : [unlocks ? `${unlocks} later` : '', it.transfer ? 'Transfer' : it.termLabel].filter(Boolean).join(' · ')));
 }
 function orCard(n) {
   return h('div', { class: 'tcard or' }, h('span', { class: 'top' }, h('span', { class: 'code' }, 'One of')),
     h('span', { class: 'alts' }, n.options.slice(0, 6).map(o => {
       const it = o.it || stub(o.code);
-      return h('button', { type: 'button', class: `alt ${it.status}${o.code === n.pick ? ' pick' : ''}`, style: `--c:${color(it.group)}`, title: `${o.code} · ${CHIP[it.status]}`, onclick: () => detail(it, true) }, o.code);
+      return h('button', { type: 'button', class: `alt ${it.status}${o.code === n.pick ? ' pick' : ''}`, style: cardStyle(it), title: `${o.code} · ${CHIP[it.status]}`, onclick: () => detail(it, true) }, o.code);
     }), n.options.length > 6 && h('small', {}, `+${n.options.length - 6}`)));
 }
 
 // ---------- wiring ----------
 
 function zoomChart() {
-  const percent = +$('#chart-zoom').value, chart = $('#track .tree');
-  if (chart) chart.style.zoom = percent / 100;
+  const percent = +$('#chart-zoom').value, chart = $('#track .tree'), track = $('#track');
+  if (chart) {
+    const width = chart.offsetWidth * percent / 100, height = chart.offsetHeight * percent / 100;
+    track.style.width = Math.ceil(width) + 'px';
+    track.style.height = Math.ceil(height) + 'px';
+    chart.style.transform = `scale(${percent / 100})`;
+    chart.style.left = `calc(50% - ${width / 2}px)`;
+    chart.style.top = `calc(50% - ${height / 2}px)`;
+  }
   $('#chart-zoom-out').value = percent + '%';
 }
 
-for (const id of ['layout-width', 'layout-spacing', 'chart-zoom']) {
+function chartSpace() {
+  const pane = $('#board'), css = getComputedStyle(pane);
+  return { width: pane.clientWidth - parseFloat(css.paddingLeft) - parseFloat(css.paddingRight),
+    height: pane.clientHeight - parseFloat(css.paddingTop) - parseFloat(css.paddingBottom) };
+}
+
+function fitChart() {
+  const chart = $('#track .tree');
+  if (!chart) return;
+  const size = chartSpace();
+  $('#chart-zoom').value = Math.max(1, Math.floor(Math.min(1, size.width / chart.offsetWidth, size.height / chart.offsetHeight) * 100));
+  zoomChart();
+  $('#board').scrollLeft = $('#board').scrollTop = 0;
+}
+
+for (const id of ['layout-spacing', 'chart-zoom']) {
   const input = $('#' + id);
   input.value = store.get('flowworks:' + id) ?? input.defaultValue;
   const update = () => {
@@ -345,16 +387,22 @@ for (const id of ['layout-width', 'layout-spacing', 'chart-zoom']) {
     store.set('flowworks:' + id, input.value);
   };
   update();
-  input.addEventListener('input', () => { update(); id === 'chart-zoom' ? zoomChart() : board(); });
+  input.addEventListener('input', () => {
+    update();
+    if (id === 'chart-zoom') { fit = false; zoomChart(); }
+    else board();
+  });
 }
+// Auto is the default for existing users too; a manually chosen column count is remembered separately.
+$('#layout-width').value = store.get('flowworks:columns') || 'auto';
+if (!$('#layout-width').value) $('#layout-width').value = 'auto';
+$('#layout-width').addEventListener('change', () => { store.set('flowworks:columns', $('#layout-width').value); board(); });
 $('#fit-chart').addEventListener('click', () => {
-  const chart = $('#track .tree'), pane = $('#board'), padding = getComputedStyle(pane);
-  if (!chart) return;
-  const available = pane.clientWidth - parseFloat(padding.paddingLeft) - parseFloat(padding.paddingRight);
-  $('#chart-zoom').value = Math.min(100, Math.floor(available / chart.offsetWidth * 20) * 5);
-  $('#chart-zoom').dispatchEvent(new Event('input'));
-  pane.scrollLeft = 0;
+  fit = true;
+  board();
 });
+addEventListener('resize', () => model && !$('#chart').hidden && board());
+document.fonts.ready.then(() => model && !$('#chart').hidden && board());
 
 $('#detail').addEventListener('click', e => e.target === e.currentTarget && e.currentTarget.close());
 $('#bm').addEventListener('click', e => { e.preventDefault(); toast('Drag this button to your bookmarks bar, then click it on your Degree Works page.'); });
@@ -381,10 +429,10 @@ $('#reset').addEventListener('click', () => {
 const pane = $('#board');
 pane.addEventListener('pointerdown', e => {
   if (e.pointerType !== 'mouse' || e.button || e.target.closest('button, a, input, label, [role=button]')) return;
-  const x = e.clientX, left = pane.scrollLeft;
+  const x = e.clientX, y = e.clientY, left = pane.scrollLeft, top = pane.scrollTop;
   pane.setPointerCapture(e.pointerId);
   pane.classList.add('grabbing');
-  const move = ev => (pane.scrollLeft = left - (ev.clientX - x));
+  const move = ev => { pane.scrollLeft = left - (ev.clientX - x); pane.scrollTop = top - (ev.clientY - y); };
   pane.addEventListener('pointermove', move);
   pane.addEventListener('pointerup', () => { pane.removeEventListener('pointermove', move); pane.classList.remove('grabbing'); }, { once: true });
 });

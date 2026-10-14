@@ -1,7 +1,7 @@
 // node test.mjs — sanity check of the parser + planner against demo.json.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseAudit, columns, analyze, degreeTree, courseTree, prereqGroups, nextTerm, titleCase } from './model.js';
+import { parseAudit, columns, analyze, degreeTree, courseTree, prereqGroups, nextTerm, titleCase, priorityColors } from './model.js';
 
 assert.deepEqual(prereqGroups([['', 'CS', '2300'], ['A', 'MATH', '1160'], ['O', 'MATH', '1350'], ['O', '', '']]), [['CS 2300'], ['MATH 1160', 'MATH 1350']]);
 assert.equal(nextTerm('Fall 2026'), 'Spring 2027');
@@ -52,12 +52,13 @@ for (let i = 0; i < 60; i++) {
 }
 wide.edges.push({ from: 'root', to: 'end' });
 wide.byKey = Object.fromEntries(Object.entries(wide.byKey).sort(([p], [q]) => p.localeCompare(q)));
-for (const graph of [a, wide]) for (const width of [2, 4, 6, 10]) {
-  const D = degreeTree(graph, width), keys = new Set(graph.edges.flatMap(e => [e.from, e.to]));
-  assert.deepEqual(new Set(D.nodes.map(n => n.key)), keys, 'every linked course is shown once');
+for (const graph of [a, wide]) for (const width of [2, 4, 6, 10, 16]) {
+  const D = degreeTree(graph, width), keys = new Set(Object.keys(graph.byKey));
+  assert.deepEqual(new Set(D.nodes.map(n => n.key)), keys, 'every course is shown once, including unlinked requirements');
   assert.equal(D.nodes.length, keys.size, 'no duplicate courses or card-sized routing slots');
   assert.ok(D.nodes.every(n => n.x >= 0 && n.x < width), 'layout respects the column limit');
   assert.equal(new Set(D.nodes.map(n => `${n.x}:${n.level}`)).size, keys.size, 'cards never overlap');
+  for (const n of D.nodes) assert.ok(D.nodes.every(other => other === n || other.level !== n.level || Math.abs(other.x - n.x) >= 1), 'centered branches do not overlap');
   assert.equal(D.links.length, graph.edges.length, 'every prerequisite link is preserved');
   D.links.forEach(([from, to, edge], i) => {
     assert.equal(edge, graph.edges[i]);
@@ -82,9 +83,33 @@ assert.equal(new Set(packed.nodes.map(n => `${n.x}:${n.level}`)).size, 48, 'pack
 assert.ok(packed.links.every(([p, c]) => p.x === c.x && c.level === p.level + 1), 'every independent chain stays adjacent');
 assert.equal(Math.max(...packed.nodes.map(n => n.level)), 11, 'short chains fill four columns compactly');
 assert.deepEqual(degreeTree({ edges: [], byKey: {} }), { nodes: [], links: [] }, 'empty audit has no graph');
-assert.deepEqual(degreeTree({ edges: [], byKey: { only: { key: 'only' } } }).nodes, [], 'unlinked courses belong in the course list');
+assert.equal(degreeTree({ edges: [], byKey: { only: { key: 'only' } } }).nodes[0].key, 'only', 'unlinked courses remain on the canvas');
 assert.ok(degreeTree(a, NaN).nodes.every(n => n.x < 4), 'invalid width falls back to four columns');
 assert.throws(() => degreeTree({ byKey: { a: { key: 'a' }, b: { key: 'b' } }, edges: [{ from: 'a', to: 'b' }, { from: 'b', to: 'a' }] }), /cycle/);
+const sketch = { byKey: {}, edges: [['math', 'econ'], ['math', 'business'], ['econ', 'finance'], ['business', 'accounting'], ['business', 'stats'], ['accounting', 'finance'], ['accounting', 'managerial'], ['stats', 'stats2']].map(([from, to]) => ({ from, to })) };
+for (const key of new Set(sketch.edges.flatMap(e => [e.from, e.to]))) sketch.byKey[key] = { key };
+sketch.byKey.strategy = { key: 'strategy' };
+const drawing = degreeTree(sketch, 4), node = key => drawing.nodes.find(n => n.key === key);
+assert.equal(node('math').x, (node('econ').x + node('business').x) / 2, 'foundation sits over its two branches');
+assert.equal(drawing.nodes.length, 9, 'the disconnected strategy requirement stays visible');
+const diamond = analyze([
+  { items: [{ key: 'root', code: 'ROOT', status: 'done' }] },
+  { items: [{ key: 'left', code: 'LEFT', status: 'planned', prereqs: [['ROOT']] }, { key: 'right', code: 'RIGHT', status: 'planned', prereqs: [['ROOT']] }] },
+  { items: [{ key: 'end', code: 'END', status: 'planned', prereqs: [['LEFT'], ['RIGHT']] }] },
+]);
+assert.equal(diamond.info.root.unlocks, 3, 'completed foundations count all unique descendants, not paths');
+assert.equal(diamond.info.end.unlocks, 0, 'terminal course has no dependents');
+let previous = 1;
+for (let count = 0; count <= 100; count++) {
+  const { fill, ink } = priorityColors(count, 100);
+  const rgb = fill.match(/\d+/g).map(Number).map(v => v / 255 <= .04045 ? v / 255 / 12.92 : ((v / 255 + .055) / 1.055) ** 2.4);
+  const light = rgb.reduce((n, v, i) => n + v * [.2126, .7152, .0722][i], 0);
+  assert.ok(light <= previous, 'more dependents always gives a darker card');
+  assert.ok((ink === '#fff' ? 1.05 / (light + .05) : (light + .05) / .05) >= 4.5, 'card text keeps accessible contrast');
+  previous = light;
+}
+assert.equal(priorityColors(0, 0).fill, 'rgb(219 238 205)', 'no dependencies is green');
+assert.equal(priorityColors(3, 3).fill, 'rgb(150 66 14)', 'largest bottleneck is dark orange');
 const cs4900 = Object.values(a.byKey).find(x => x.code === 'CS 4900');
 const T = courseTree(cs4900, a, m.prereqs);
 assert.ok(T.links.every(([p, c]) => c.level - p.level === 1), 'tree links join adjacent rows');

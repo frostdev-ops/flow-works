@@ -150,9 +150,9 @@ code { font: .88em var(--mono); background: color-mix(in oklab, var(--ink) 7%, t
 .viewnote { flex: 1; min-width: 200px; }
 .keys { display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap; }
 .k { display: inline-block; width: 18px; height: 11px; border-radius: 4px; margin-right: 6px; vertical-align: -1px; }
-.k.done { background: color-mix(in oklab, var(--accent) 22%, var(--card)); border: 1px solid var(--line); }
-.k.current { border: 1.5px solid var(--accent); box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 20%, transparent); }
-.k.planned { border: 1.5px dashed color-mix(in oklab, var(--accent) 60%, var(--line)); }
+.k.done { border: 1px solid var(--muted); }
+.k.current { border: 2px solid var(--muted); }
+.k.planned { border: 1.5px dashed var(--muted); }
 .k.crit { height: 3px; border-radius: 2px; background: var(--hot); }
 
 /* ---------- insights ---------- */
@@ -181,15 +181,22 @@ code { font: .88em var(--mono); background: color-mix(in oklab, var(--ink) 7%, t
 .warn ul { display: grid; gap: 8px; font-size: 13px; color: var(--muted); }
 
 /* ---------- degree flowchart ---------- */
-.hint h2 { color: var(--ink); font-size: 18px; }
+.hint h1 { color: var(--ink); font-size: 20px; }
 .chart-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 24px; margin: 16px clamp(16px, 4vw, 40px) 0; }
 .chart-controls label { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
 .chart-controls input { width: 100px; accent-color: var(--accent); cursor: pointer; }
+.chart-controls select { padding: 5px 8px; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 8px; font: inherit; }
 .chart-controls output { min-width: 42px; color: var(--ink); font: 600 12px var(--mono); }
 .chart-controls .btn { padding: 6px 12px; font-size: 12px; }
-.board { overflow-x: auto; padding: 24px clamp(16px, 4vw, 40px); cursor: grab; scrollbar-width: thin; }
+.priority-key { display: flex; align-items: center; gap: 8px; margin: 12px clamp(16px, 4vw, 40px) 0; font-size: 11px; color: var(--muted); }
+.priority-key i { width: 130px; height: 10px; border-radius: 6px; background: linear-gradient(90deg, #dbeecd, #e5b958, #96420e); }
+.board { overflow: auto; padding: 16px clamp(16px, 4vw, 40px); cursor: grab; scrollbar-width: thin; }
 .board.grabbing { cursor: grabbing; user-select: none; }
-.track { min-width: max-content; }
+.track { position: relative; min-width: 100%; min-height: 100%; overflow: hidden; }
+.track .overview { position: absolute; margin: 0; transform-origin: top left; }
+.degree-details { margin: 12px clamp(16px, 4vw, 40px); }
+.degree-details > summary { cursor: pointer; font-size: 14px; font-weight: 600; }
+.degree-details .summary { margin: 16px 0; }
 .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .meta { color: var(--muted); }
 @keyframes dash { to { stroke-dashoffset: -11; } }
@@ -197,17 +204,6 @@ code { font: .88em var(--mono); background: color-mix(in oklab, var(--ink) 7%, t
 #chart.focus .tree-lines path:not(.lit) { opacity: .08; }
 #chart.focus .tree-lines path.lit { stroke-width: 3; }
 .tree-lines path.crit { stroke: var(--hot); stroke-width: 2.6; }
-.requirements { margin: 16px clamp(16px, 4vw, 40px) 0; }
-.requirements > header { margin-bottom: 24px; }
-.requirements h2 { font-size: 18px; }
-.requirements p { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
-.requirement-term { margin: 0 0 24px; }
-.requirement-term h3 { display: flex; align-items: baseline; gap: 12px; font-size: 15px; margin-bottom: 10px; }
-.requirement-term h3 span { color: var(--muted); font: 400 12px var(--sans); }
-.course-grid { display: grid; grid-template-columns: repeat(auto-fill, 200px); gap: 12px 20px; }
-.course-grid .tcard { position: relative; }
-.degree-goal { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 24px; margin: 28px 0; border-block: 1px solid var(--line); }
-.degree-goal > span { font-size: 28px; color: var(--accent); }
 .plan-insights { margin: 24px clamp(16px, 4vw, 40px); }
 .plan-insights > summary { cursor: pointer; font-size: 14px; font-weight: 600; }
 .plan-insights .insights { margin: 16px 0 0; }
@@ -234,6 +230,7 @@ code { font: .88em var(--mono); background: color-mix(in oklab, var(--ink) 7%, t
 button.tcard { cursor: pointer; }
 .tcard::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3.5px; border-radius: 0 4px 4px 0; background: var(--c, var(--gfree)); }
 button.tcard:hover, button.tcard:focus-visible { transform: translateY(-2px); box-shadow: 0 0 0 2px color-mix(in oklab, var(--c) 50%, transparent), var(--shadow); outline: none; }
+button.tcard:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .tcard.done { background: color-mix(in oklab, var(--c) 8%, var(--card)); }
 .tcard.planned { background: var(--card); border: 1.5px dashed color-mix(in oklab, var(--c) 55%, var(--line)); box-shadow: none; }
 .tcard.missing { --c: var(--g7); background: color-mix(in oklab, var(--g7) 8%, var(--card)); border: 1.5px dashed color-mix(in oklab, var(--g7) 60%, var(--line)); box-shadow: none; }
@@ -244,6 +241,16 @@ button.tcard:hover, button.tcard:focus-visible { transform: translateY(-2px); bo
 .tcard .code { font: 700 11.5px var(--mono); color: color-mix(in oklab, var(--c) 75%, var(--ink)); }
 .tcard .title { font-weight: 600; font-size: 12.5px; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .tcard .meta { margin: 0; line-height: 1.2; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tcard:not(.or):not(.missing) { background: var(--c); color: var(--card-ink); border-color: color-mix(in srgb, var(--card-ink) 35%, var(--c)); }
+.tcard:not(.or):not(.missing)::before { display: none; }
+.tcard:not(.or):not(.missing) .code, .tcard:not(.or):not(.missing) .meta, .tcard:not(.or):not(.missing) .missing-note { color: inherit; }
+.tcard:not(.or):not(.missing) .chip { color: inherit; background: transparent; border: 1px solid currentColor; }
+.tcard.current, .tcard.registered { border-width: 2px; }
+.overview .tcard { width: 176px; height: 76px; padding: 7px 9px; gap: 2px; border-radius: 9px; }
+.overview .tcard .title { font-size: 11.5px; }
+.overview .tcard .meta { font-size: 10px; }
+.overview .tcard .chip { padding: 1px 4px; font-size: 9px; line-height: 1.1; }
+.ins .chip { background: var(--c); color: var(--card-ink); }
 .chip { font: 600 10px var(--sans); padding: 2px 7px; border-radius: 99px; white-space: nowrap; color: var(--muted); background: color-mix(in oklab, var(--ink) 7%, transparent); }
 .chip.done { color: var(--g5); background: color-mix(in oklab, var(--g5) 14%, transparent); }
 .chip.current, .chip.registered { color: var(--accent); background: color-mix(in oklab, var(--accent) 14%, transparent); }
@@ -252,7 +259,7 @@ button.tcard:hover, button.tcard:focus-visible { transform: translateY(-2px); bo
 .tcard.or .code { color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-size: 10px; }
 .alts { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .alt { all: unset; cursor: pointer; font: 600 11px var(--mono); padding: 2px 7px; border-radius: 7px; color: var(--muted); border: 1px dashed var(--line); }
-.alt.pick { color: color-mix(in oklab, var(--c) 75%, var(--ink)); border: 1px solid color-mix(in oklab, var(--c) 60%, var(--line)); background: color-mix(in oklab, var(--c) 12%, transparent); }
+.alt.pick { color: var(--ink); border: 1px solid color-mix(in oklab, var(--c) 60%, var(--line)); background: color-mix(in oklab, var(--c) 12%, transparent); }
 .alt.done.pick::before { content: "✓ "; color: var(--g5); }
 .alt:hover, .alt:focus-visible { color: var(--ink); border-color: var(--ink); }
 .alts small { color: var(--muted); font-size: 11px; }
@@ -269,7 +276,7 @@ dialog[open] { animation: rise .35s var(--ease); }
 dialog::backdrop { background: rgb(10 12 18 / .4); backdrop-filter: blur(4px); }
 @keyframes rise { from { opacity: 0; transform: translateY(14px) scale(.98); } }
 dialog form { padding: 26px 28px 24px; border-top: 5px solid var(--c); }
-dialog .eyebrow { color: color-mix(in oklab, var(--c) 75%, var(--ink)); padding-right: 30px; }
+dialog .eyebrow { color: var(--muted); padding-right: 30px; }
 dialog h3 { font-size: 24px; line-height: 1.15; }
 dialog .meta { white-space: normal; font-size: 13px; margin: 8px 0 0; }
 dialog h4 { margin: 20px 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
@@ -302,8 +309,6 @@ dialog ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
 @media (max-width: 560px) {
   .summary { grid-template-columns: 1fr; gap: 16px; }
   .ring { display: none; }
-  .course-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
-  .course-grid .tcard { width: 100%; }
   .range span { display: none; }
   .tools .btn { display: none; }
 }
