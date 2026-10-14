@@ -12,8 +12,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=chains1">
-<script type="module" src="app.js?v=chains1"></script>
+<link rel="stylesheet" href="style.css?v=chains2">
+<script type="module" src="app.js?v=chains2"></script>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -106,6 +106,7 @@
     <label for="layout-spacing">Spacing <input id="layout-spacing" type="range" min="20" max="80" step="4" value="36"><output id="layout-spacing-out" for="layout-spacing">36</output></label>
     <label for="chart-zoom">Zoom <input id="chart-zoom" type="range" min="1" max="150" step="1" value="100"><output id="chart-zoom-out" for="chart-zoom">100%</output></label>
     <button id="fit-chart" class="btn ghost" type="button">Fit all</button>
+    <label><input id="hide-unconnected" type="checkbox">Hide unconnected courses</label>
   </div>
   <div class="priority-key" aria-label="Card color: green for fewer dependent courses, dark orange for more dependent courses"><span>Fewer dependents</span><i aria-hidden="true"></i><span>More dependents</span></div>
   <section id="board" class="board" aria-label="Degree flowchart" tabindex="0"><div id="track" class="track"></div></section>

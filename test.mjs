@@ -94,6 +94,17 @@ sketch.byKey.strategy = { key: 'strategy' };
 const drawing = degreeTree(sketch, 4), node = key => drawing.nodes.find(n => n.key === key);
 assert.ok(Math.abs(node('math').x - (node('econ').x + node('business').x) / 2) < .1, 'foundation sits between its two branches');
 assert.equal(drawing.nodes.filter(n => n.kind === 'course').length, 9, 'the disconnected strategy requirement stays visible');
+const sharedFixture = JSON.parse(readFileSync(new URL('./fixtures/shared-chains.json', import.meta.url)));
+const shared = { byKey: Object.fromEntries(sharedFixture.courses.map(([key, title, status]) => [key, { key, code: key, title, status }])),
+  edges: sharedFixture.edges.map(([from, to]) => ({ from, to })) };
+for (const width of [2, 4, 10, 16]) for (const gap of [20, 80]) {
+  const layout = degreeTree(shared, width, gap);
+  assert.ok(layout.nodes.every(n => n.kind === 'course'), 'the reported shared joins need no duplicate cards or reference pills');
+  assert.equal(layout.nodes.length, 12, 'each pictured course appears exactly once');
+  assert.equal(layout.links.length, 15, 'all pictured prerequisite relationships remain');
+  const band = 66 / (92 + gap);
+  assert.ok(layout.nodes.every(n => layout.nodes.filter(p => p.level <= n.level + 1e-8 && p.level + band > n.level + 1e-8).length <= width), 'staggered cards still respect the column limit');
+}
 const sketchClasses = [
   ['MATH', '1060', 'Foundations of Math', 0], ['MATH', '1170', 'Business Math', 1], ['ECON', '2020', 'Microeconomic Principles', 1],
   ['ACCT', '2110', 'Financial Accounting', 2], ['ECON', '2100', 'Business Statistics I', 2],
@@ -199,7 +210,7 @@ function checkCards(layout, routes, g) {
     assert.ok(!corners.some((p, i) => intersects(from, to, p, corners[(i + 1) % 4])), 'straight links never enter another card or reference');
   }
 }
-for (const graph of [a, sketch, wide, nonplanar]) for (const width of [2, 4, 10, 16]) for (const gap of [20, 80]) {
+for (const graph of [a, sketch, shared, wide, nonplanar]) for (const width of [2, 4, 10, 16]) for (const gap of [20, 80]) {
   const layout = degreeTree(graph, width, gap), g = geometry(layout, gap), routes = treeRoutes(layout, g);
   const ports = new Map(layout.nodes.map(n => [n, new Set()]));
   for (const r of routes) {

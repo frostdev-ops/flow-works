@@ -187,6 +187,7 @@ code { font: .88em var(--mono); background: color-mix(in oklab, var(--ink) 7%, t
 .chart-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 24px; margin: 16px clamp(16px, 4vw, 40px) 0; }
 .chart-controls label { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
 .chart-controls input { width: 100px; accent-color: var(--accent); cursor: pointer; }
+.chart-controls input[type="checkbox"] { width: 16px; height: 16px; margin: 0; }
 .chart-controls select { padding: 5px 8px; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 8px; font: inherit; }
 .chart-controls output { min-width: 42px; color: var(--ink); font: 600 12px var(--mono); }
 .chart-controls .btn { padding: 6px 12px; font-size: 12px; }

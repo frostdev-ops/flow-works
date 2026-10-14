@@ -256,7 +256,13 @@ export function priorityColors(count, most) {
 
 // Place shared courses between their chains. Invisible slots keep room for long straight links.
 export function degreeTree(a, width = 4, gap = 36) {
+  return degreeDrawing(a, width, gap);
+}
+
+function degreeDrawing(a, width, gap, seed = 0, search = true) {
   width = Math.max(2, Math.min(16, Math.round(width) || 4));
+  let state = seed;
+  const random = () => ((state = (Math.imul(state, 1664525) + 1013904223) >>> 0) / 2 ** 32);
   const up = {}, neighbors = {};
   for (const e of a.edges) {
     (up[e.to] ||= []).push(e.from);
@@ -271,8 +277,10 @@ export function degreeTree(a, width = 4, gap = 36) {
     const todo = new Set(keys), placed = new Map();
     for (let level = 0; todo.size; level++) {
       const latest = k => Math.max(-1, ...(up[k] || []).map(p => placed.get(p).level));
+      const priority = new Map([...todo].map(k => [k, seed ? random() : 0]));
+      const batch = seed ? 1 + Math.floor(random() * Math.min(width, 3)) : width;
       const ready = [...todo].filter(k => (up[k] || []).every(p => placed.has(p)))
-        .sort((p, q) => latest(q) - latest(p)).slice(0, width);
+        .sort((p, q) => seed ? priority.get(p) - priority.get(q) : latest(q) - latest(p)).slice(0, batch);
       if (!ready.length) throw new Error('Prerequisite links contain a cycle.');
       ready.forEach((key, x) => { placed.set(key, { key, kind: 'course', it: a.byKey[key], level, x, span: 1 }); todo.delete(key); });
     }
@@ -414,7 +422,7 @@ export function degreeTree(a, width = 4, gap = 36) {
         }
         if (edges.length <= 50 && moves < 16) {
           const state = [...placed.values()].map(n => n.level).join(',');
-          const keys = [...new Set(clashes.flat().flatMap(e => [e.to, e.from]))];
+          const keys = [...new Set([...clashes.flat().flatMap(e => [e.to, e.from]), ...placed.keys()])];
           let proposal;
           for (const key of keys) for (const delta of [1, -1]) {
             const signature = state + ':' + key + ':' + delta;
@@ -453,6 +461,18 @@ export function degreeTree(a, width = 4, gap = 36) {
       nodes.forEach(n => n.x -= left);
       drawing = { nodes, links, span: Math.ceil(Math.max(...nodes.map(n => n.x + (1 + n.span) / 2))), height: rows.length }; break;
     }
+    if (search && references.size && keys.length <= 70 && edges.length <= 50) {
+      const graph = { byKey: Object.fromEntries(keys.map(k => [k, a.byKey[k]])), edges };
+      for (let attempt = 0; attempt <= 8; attempt++) {
+        const candidate = attempt ? degreeDrawing(graph, width, gap, attempt, false) : drawing;
+        const unique = candidate.nodes.some(n => n.kind === 'reference') ? untangle(candidate, edges, width, gap, attempt + 1) : candidate;
+        if (!unique) continue;
+        const left = Math.min(...unique.nodes.map(n => n.x + (1 - n.span) / 2)), top = Math.min(...unique.nodes.map(n => n.level));
+        unique.nodes.forEach(n => { n.x -= left; n.level -= top; });
+        drawing = { ...unique, span: Math.ceil(Math.max(...unique.nodes.map(n => n.x + (1 + n.span) / 2))), height: Math.ceil(Math.max(...unique.nodes.map(n => n.level))) + 1 };
+        break;
+      }
+    }
     parts.push(drawing);
   }
   const capacity = Math.max(width, ...parts.map(p => p.span)), bottom = Array(capacity).fill(0), rowCounts = [], nodes = [], links = [];
@@ -479,11 +499,67 @@ export function degreeTree(a, width = 4, gap = 36) {
     for (const [dx, dy] of [[-.125, 0], [.125, 0], [0, -.1], [0, .1]]) {
       n.x = x + dx; n.level = level + dy;
       if (n.x >= 0 && n.level >= 0 && Math.abs(n.level - origin.get(n)) <= .201 && connected.every(([p, c]) => p.level < c.level)
-        && length() < best - .01 && !straightConflicts({ nodes: visible, links }, gap).length) { best = length(); x = n.x; level = n.level; }
+        && length() < best - .01 && !crowdedRows(visible, width, gap).length && !straightConflicts({ nodes: visible, links }, gap).length) { best = length(); x = n.x; level = n.level; }
     }
     n.x = x; n.level = level;
   }
   return { nodes, links };
+}
+
+function crowdedRows(nodes, width, gap) {
+  const cards = nodes.filter(n => n.kind === 'course'), band = 66 / (92 + gap);
+  return cards.map(n => cards.filter(p => p.level <= n.level + 1e-8 && p.level + band > n.level + 1e-8)).filter(row => row.length > width);
+}
+
+// Search whole branches as well as single cards; a local rank change cannot untangle every shared join.
+function untangle(drawing, edges, width, gap, seed) {
+  const nodes = drawing.nodes.filter(n => n.kind === 'course').map(n => ({ ...n })), byKey = new Map(nodes.map(n => [n.key, n]));
+  const links = edges.map(e => [byKey.get(e.from), byKey.get(e.to), e]), T = { nodes, links };
+  const groups = new Map(nodes.map(n => {
+    const descendants = new Set([n]);
+    for (const p of descendants) for (const [from, to] of links) if (from === p) descendants.add(to);
+    return [n, [...descendants]];
+  }));
+  const bounds = { left: Math.min(...nodes.map(n => n.x)) - 4, right: Math.max(...nodes.map(n => n.x)) + 4,
+    top: Math.min(...nodes.map(n => n.level)) - 2, bottom: Math.max(...nodes.map(n => n.level)) + 4 };
+  let state = seed;
+  const random = () => ((state = (Math.imul(state, 1664525) + 1013904223) >>> 0) / 2 ** 32);
+  const coords = () => nodes.map(n => [n.x, n.level]), restore = points => nodes.forEach((n, i) => { [n.x, n.level] = points[i]; });
+  const forward = () => links.every(([p, c]) => p.level < c.level);
+  const score = () => {
+    const clashes = straightConflicts(T, gap);
+    for (const row of crowdedRows(nodes, width, gap)) clashes.push(links.filter(([p, c]) => row.includes(p) || row.includes(c)).map(link => link[2]));
+    const length = links.reduce((sum, [p, c]) => sum + Math.hypot((p.x - c.x) * (164 + gap), (p.level - c.level) * (92 + gap)) / (164 + gap), 0);
+    const extent = Math.max(...nodes.map(n => n.x)) - Math.min(...nodes.map(n => n.x)) + Math.max(...nodes.map(n => n.level)) - Math.min(...nodes.map(n => n.level));
+    return { clashes, cost: clashes.length * 100 + length * .2 + extent * 2 };
+  };
+  let current = score(), best = current.cost, saved = coords();
+  // shortcut: bounded search keeps imports responsive; use a planar embedding engine if larger connected graphs need it.
+  for (let i = 0; current.clashes.length && i < 1600; i++) {
+    const clash = current.clashes[Math.floor(random() * current.clashes.length)], pool = clash.flatMap(e => [byKey.get(e.from), byKey.get(e.to)]);
+    const n = random() < .25 || !pool.length ? nodes[Math.floor(random() * nodes.length)] : pool[Math.floor(random() * pool.length)];
+    const before = coords(), step = [.25, .5, 1, 2][Math.floor(random() * 4)] * (random() < .5 ? -1 : 1), action = random();
+    if (action < .5) n.x += step;
+    else for (const p of action < .8 ? [n] : groups.get(n)) p.level += step;
+    if (!forward() || nodes.some(n => n.x < bounds.left || n.x > bounds.right || n.level < bounds.top || n.level > bounds.bottom)) { restore(before); continue; }
+    const candidate = score(), temperature = 30 * (1 - i % 800 / 800) + 1;
+    if (candidate.cost < current.cost || random() < Math.exp((current.cost - candidate.cost) / temperature)) {
+      current = candidate;
+      if (current.cost < best) { best = current.cost; saved = coords(); }
+    } else restore(before);
+    if (i % 800 === 799) { restore(saved); current = score(); }
+  }
+  if (current.clashes.length) return null;
+  for (let pass = 0; pass < 12; pass++) for (const n of nodes) for (const step of [1, .5, .25, .125])
+    for (const [dx, dy] of [[-step, 0], [step, 0], [0, -step], [0, step]]) for (const branch of [false, true]) {
+      if (branch && dx) continue;
+      const before = coords(), old = current.cost;
+      for (const p of branch ? groups.get(n) : [n]) { p.x += dx; p.level += dy; }
+      const candidate = score();
+      if (forward() && !candidate.clashes.length && candidate.cost < old - .001) current = candidate;
+      else restore(before);
+    }
+  return T;
 }
 
 // One straight segment per relationship, clipped to the facing card edges.

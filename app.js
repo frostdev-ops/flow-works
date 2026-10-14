@@ -1,4 +1,4 @@
-import { parseAudit, columns, analyze, degreeTree, courseTree, priorityColors, treeRoutes } from './model.js?v=chains1';
+import { parseAudit, columns, analyze, degreeTree, courseTree, priorityColors, treeRoutes } from './model.js?v=chains2';
 
 const $ = s => document.querySelector(s);
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -150,25 +150,30 @@ function board() {
   edges = A.edges;
   most = Math.max(0, ...Object.values(A.info).map(n => n.unlocks));
   stats(terms);
-  const count = Object.keys(A.byKey).length;
+  const total = Object.keys(A.byKey).length, hide = $('#hide-unconnected').checked;
+  const linked = new Set(A.edges.flatMap(e => [e.from, e.to]));
+  const byKey = Object.fromEntries(Object.entries(A.byKey).filter(([key]) => !hide || linked.has(key)));
+  const graph = { byKey, edges: A.edges.filter(e => byKey[e.from] && byKey[e.to]) }, count = Object.keys(byKey).length;
   $('#viewnote').textContent = count
-    ? `${plural(count, 'course')} · Follow the straight links. Select a course for details.`
-    : 'No courses were included in this audit.';
+    ? `${count === total ? plural(count, 'course') : `${count} of ${total} courses`} · Follow the straight links. Select a course for details.`
+    : total ? 'No courses have prerequisite connections. Clear the hide option to show all courses.' : 'No courses were included in this audit.';
   const pane = $('#board');
-  pane.hidden = $('#chart-controls').hidden = !count;
+  pane.hidden = !count;
+  $('#chart-controls').hidden = !total;
   if (!count) { $('#track').replaceChildren(); insights(); return; }
   pane.style.height = Math.max(240, innerHeight - (pane.getBoundingClientRect().top + scrollY) - 16) + 'px';
   const size = chartSpace();
   let T;
   if ($('#layout-width').value === 'auto') {
-    let best = -1;
-    for (let width = 2; width <= 16; width++) {
-      const candidate = degreeTree(A, width, +$('#layout-spacing').value), { width: w, height: ht } = treeSize(candidate);
+    let best = -1, unique = false;
+    for (const width of [2, 4, 8, 12, 16]) {
+      const candidate = degreeTree(graph, width, +$('#layout-spacing').value), { width: w, height: ht } = treeSize(candidate);
       const refs = candidate.nodes.filter(n => n.kind === 'reference').length;
-      const score = Math.min(size.width / w, size.height / ht) / (1 + refs * .15);
-      if (score > best) { T = candidate; best = score; }
+      const score = Math.min(1, size.width / w, size.height / ht) / (1 + refs * .15);
+      if (!refs && !unique || (!unique || !refs) && score > best) { T = candidate; best = score; unique = refs === 0; }
+      if (unique && best === 1) break;
     }
-  } else T = degreeTree(A, +$('#layout-width').value, +$('#layout-spacing').value);
+  } else T = degreeTree(graph, +$('#layout-width').value, +$('#layout-spacing').value);
   const references = T.nodes.filter(n => n.kind === 'reference').length;
   if (references) $('#viewnote').textContent += ` ${plural(references, 'course reference')} keep connections from crossing.`;
   pane.style.height = Math.max(240, innerHeight - (pane.getBoundingClientRect().top + scrollY) - 16) + 'px';
@@ -182,7 +187,7 @@ function board() {
 
 function jump(key) {
   const el = $(`#chart [data-key="${CSS.escape(key)}"]`);
-  if (!el) return toast('That course is hidden in this view.');
+  if (!el) return A.byKey[key] ? detail(A.byKey[key], false) : toast('That course is hidden in this view.');
   el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center', inline: 'center' });
   el.focus({ preventScroll: true });
 }
@@ -409,6 +414,8 @@ for (const id of ['layout-spacing', 'chart-zoom']) {
 $('#layout-width').value = store.get('flowworks:columns') || 'auto';
 if (!$('#layout-width').value) $('#layout-width').value = 'auto';
 $('#layout-width').addEventListener('change', () => { store.set('flowworks:columns', $('#layout-width').value); board(); });
+$('#hide-unconnected').checked = store.get('flowworks:hide-unconnected') === '1';
+$('#hide-unconnected').addEventListener('change', () => { store.set('flowworks:hide-unconnected', $('#hide-unconnected').checked ? '1' : '0'); board(); });
 $('#fit-chart').addEventListener('click', () => {
   fit = true;
   board();

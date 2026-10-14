@@ -1,0 +1,26 @@
+{
+  "courses": [
+    ["CS 2300", "Computer Science I", "done"],
+    ["MATH 1150", "College Algebra", "done"],
+    ["MATH 1160", "Precalculus", "current"],
+    ["CS 2350", "Fundamentals of Computer Hardware", "planned"],
+    ["CS 2421", "Object-Oriented Prog in JAVA", "planned"],
+    ["CS 2352", "Applied Operating Systems", "planned"],
+    ["CS 3351", "Computer Networks I", "planned"],
+    ["CS 3401", "System Administration", "planned"],
+    ["CS 3352", "Computer Networks II", "planned"],
+    ["CS 3660", "Fundamentals of Information Assurance", "planned"],
+    ["CS 3570", "Fundamentals of Web-Based Information Systems", "planned"],
+    ["CS 4500", "CIT Seminar", "planned"]
+  ],
+  "edges": [
+    ["CS 2300", "CS 2350"], ["CS 2300", "CS 2421"],
+    ["MATH 1150", "MATH 1160"],
+    ["MATH 1160", "CS 2350"], ["MATH 1160", "CS 2421"],
+    ["CS 2350", "CS 2352"], ["CS 2350", "CS 3351"],
+    ["CS 2352", "CS 3401"], ["CS 2352", "CS 3352"],
+    ["CS 2352", "CS 3660"], ["CS 3351", "CS 3352"], ["CS 3351", "CS 3660"],
+    ["CS 2352", "CS 3570"], ["CS 2421", "CS 3570"],
+    ["CS 3660", "CS 4500"]
+  ]
+}
