@@ -1,4 +1,4 @@
-import { parseAudit, columns, analyze, degreeTree, courseTree, priorityColors, treeRoutes } from './model.js?v=chains2';
+import { parseAudit, columns, analyze, degreeScatter, courseTree, priorityColors, treeRoutes } from './model.js?v=spokes1';
 
 const $ = s => document.querySelector(s);
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -16,9 +16,10 @@ function h(tag, attrs = {}, ...kids) {
   el.append(...kids.flat().filter(k => k != null && k !== false));
   return el;
 }
-const svg = (tag, attrs = {}) => {
+const svg = (tag, attrs = {}, ...children) => {
   const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
   for (const k in attrs) el.setAttribute(k, attrs[k]);
+  el.append(...children);
   return el;
 };
 
@@ -153,9 +154,9 @@ function board() {
   const total = Object.keys(A.byKey).length, hide = $('#hide-unconnected').checked;
   const linked = new Set(A.edges.flatMap(e => [e.from, e.to]));
   const byKey = Object.fromEntries(Object.entries(A.byKey).filter(([key]) => !hide || linked.has(key)));
-  const graph = { byKey, edges: A.edges.filter(e => byKey[e.from] && byKey[e.to]) }, count = Object.keys(byKey).length;
+  const graph = { byKey, edges: A.edges.filter(e => byKey[e.from] && byKey[e.to]), info: A.info }, count = Object.keys(byKey).length;
   $('#viewnote').textContent = count
-    ? `${count === total ? plural(count, 'course') : `${count} of ${total} courses`} · Follow the straight links. Select a course for details.`
+    ? `${count === total ? plural(count, 'course') : `${count} of ${total} courses`} · Arrows point to the courses unlocked. Select a course for details.`
     : total ? 'No courses have prerequisite connections. Clear the hide option to show all courses.' : 'No courses were included in this audit.';
   const pane = $('#board');
   pane.hidden = !count;
@@ -163,17 +164,8 @@ function board() {
   if (!count) { $('#track').replaceChildren(); insights(); return; }
   pane.style.height = Math.max(240, innerHeight - (pane.getBoundingClientRect().top + scrollY) - 16) + 'px';
   const size = chartSpace();
-  let T;
-  if ($('#layout-width').value === 'auto') {
-    let best = -1, unique = false;
-    for (const width of [2, 4, 8, 12, 16]) {
-      const candidate = degreeTree(graph, width, +$('#layout-spacing').value), { width: w, height: ht } = treeSize(candidate);
-      const refs = candidate.nodes.filter(n => n.kind === 'reference').length;
-      const score = Math.min(1, size.width / w, size.height / ht) / (1 + refs * .15);
-      if (!refs && !unique || (!unique || !refs) && score > best) { T = candidate; best = score; unique = refs === 0; }
-      if (unique && best === 1) break;
-    }
-  } else T = degreeTree(graph, +$('#layout-width').value, +$('#layout-spacing').value);
+  const shape = $('#layout-shape').value, aspect = shape === 'round' ? 1 : shape === 'wide' ? 2.2 : size.width / size.height;
+  const T = degreeScatter(graph, +$('#layout-spacing').value, aspect);
   const references = T.nodes.filter(n => n.kind === 'reference').length;
   if (references) $('#viewnote').textContent += ` ${plural(references, 'course reference')} keep connections from crossing.`;
   pane.style.height = Math.max(240, innerHeight - (pane.getBoundingClientRect().top + scrollY) - 16) + 'px';
@@ -238,6 +230,7 @@ const focusGroup = id => light(new Set(Object.values(A.byKey).filter(x => x.grou
 // ---------- course modal: prerequisite flowchart ----------
 
 const TW = 200, TH = 92, TGX = 20, TGY = 56; // tree card size and gaps
+let arrowId = 0;
 let trail = [];
 
 // Courses outside the chart (e.g. a prerequisite you never took) still open, from the prerequisite data alone.
@@ -294,6 +287,9 @@ function tree(T, rootIt) {
   const at = n => [(n.x - minX) * (cw + gx) + pad, (n.level - minL) * (ch + gy) + py];
   const box = h('div', { class: `tree${rootIt ? '' : ' overview'}`, style: `width:${Wd}px;height:${Ht}px` });
   const lines = svg('svg', { class: 'tree-lines', width: Wd, height: Ht, 'aria-hidden': 'true' });
+  const arrow = 'course-arrow-' + ++arrowId;
+  if (T.scatter) lines.append(svg('defs', {}, svg('marker', { id: arrow, viewBox: '0 0 6 6', refX: 6, refY: 3,
+    markerWidth: 6, markerHeight: 6, markerUnits: 'userSpaceOnUse', orient: 'auto' }, svg('polygon', { points: '0,0 6,3 0,6', fill: 'context-stroke' }))));
   const state = n => n.kind === 'or' ? (n.options.find(o => o.code === n.pick)?.it?.status || 'missing') : n.it?.status || 'missing';
   const ring = n => Math.abs(n.level);
   const critLinks = new Set(A.critical.slice(1).map((k, i) => A.critical[i] + '>' + k));
@@ -303,6 +299,7 @@ function tree(T, rootIt) {
       ? [A.byKey[to].status === 'planned' && 'planned', critLinks.has(from + '>' + to) && 'crit'].filter(Boolean).join(' ')
       : state(up) === 'missing' ? 'miss' : state(down) === 'planned' ? 'planned' : '';
     const p = svg('path', { d: routes[i].d, class: cls,
+      ...(T.scatter ? { 'marker-end': `url(#${arrow})` } : {}),
       'data-from': from || '', 'data-to': to || '',
       style: '--c:var(--muted)' });
     lines.append(p);
@@ -333,9 +330,7 @@ function tree(T, rootIt) {
     }
     if (n.more) el.append(h('span', { class: 'more ' + (n.level < 0 ? 'up' : 'down') }, `+${n.more} more`));
     box.append(el);
-    if (!reduce) el.animate(n.level === 0
-      ? [{ opacity: 0, transform: 'scale(.92)' }, { opacity: 1, transform: 'none' }]
-      : [{ opacity: 0, transform: `translateY(${n.level < 0 ? 14 : -14}px)` }, { opacity: 1, transform: 'none' }],
+    if (!reduce) el.animate([{ opacity: 0 }, { opacity: 1 }],
     { duration: 450, delay: Math.min(ring(n), 4) * 100, easing: EASE, fill: 'backwards' });
   }
   return box;
@@ -410,10 +405,9 @@ for (const id of ['layout-spacing', 'chart-zoom']) {
     else board();
   });
 }
-// Auto is the default for existing users too; a manually chosen column count is remembered separately.
-$('#layout-width').value = store.get('flowworks:columns') || 'auto';
-if (!$('#layout-width').value) $('#layout-width').value = 'auto';
-$('#layout-width').addEventListener('change', () => { store.set('flowworks:columns', $('#layout-width').value); board(); });
+$('#layout-shape').value = store.get('flowworks:shape') || 'auto';
+if (!$('#layout-shape').value) $('#layout-shape').value = 'auto';
+$('#layout-shape').addEventListener('change', () => { store.set('flowworks:shape', $('#layout-shape').value); board(); });
 $('#hide-unconnected').checked = store.get('flowworks:hide-unconnected') === '1';
 $('#hide-unconnected').addEventListener('change', () => { store.set('flowworks:hide-unconnected', $('#hide-unconnected').checked ? '1' : '0'); board(); });
 $('#fit-chart').addEventListener('click', () => {

@@ -259,6 +259,108 @@ export function degreeTree(a, width = 4, gap = 36) {
   return degreeDrawing(a, width, gap);
 }
 
+// Keep the planar connections, then gather neighbors around hubs without imposing rows or a flow direction.
+export function degreeScatter(a, gap = 36, aspect = 1.6) {
+  aspect = Math.max(.65, Math.min(2.2, aspect || 1.6));
+  const seed = degreeTree(a, 4, gap), visible = seed.nodes.filter(n => n.kind !== 'route');
+  const neighbors = new Map(visible.map(n => [n, []]));
+  for (const [p, c] of seed.links) { neighbors.get(p).push(c); neighbors.get(c).push(p); }
+  const unseen = new Set(visible), parts = [], unrelated = new Map();
+  while (unseen.size) {
+    const root = unseen.values().next().value;
+    if (!neighbors.get(root).length) {
+      const key = root.it.group || 'free';
+      if (!unrelated.has(key)) unrelated.set(key, []);
+      unrelated.get(key).push(root); unseen.delete(root); continue;
+    }
+    const members = new Set([root]); unseen.delete(root);
+    for (const n of members) for (const p of neighbors.get(n)) if (unseen.delete(p)) members.add(p);
+    const T = { nodes: [...members], links: seed.links.filter(([p]) => members.has(p)) };
+    gatherSpokes(T, gap, aspect, a.info || {}); parts.push(T);
+  }
+  const sx = 164 + gap, sy = 92 + gap, angle = Math.PI * (3 - Math.sqrt(5));
+  for (const cards of unrelated.values()) {
+    const T = { nodes: [], links: [] };
+    for (const n of cards) {
+      for (let i = 0;; i++) {
+        const radius = 40 * Math.sqrt(i);
+        n.x = Math.cos(i * angle) * radius * Math.sqrt(aspect) / sx;
+        n.level = Math.sin(i * angle) * radius / Math.sqrt(aspect) / sy;
+        if (!straightConflicts({ nodes: [...T.nodes, n], links: [] }, gap).length) break;
+      }
+      T.nodes.push(n);
+    }
+    parts.push(T);
+  }
+  const result = { nodes: [], links: [], scatter: true }, boxes = [];
+  for (const part of parts.sort((p, q) => q.links.length - p.links.length || q.nodes.length - p.nodes.length)) {
+    const x = (Math.min(...part.nodes.map(n => n.x)) + Math.max(...part.nodes.map(n => n.x))) / 2;
+    const y = (Math.min(...part.nodes.map(n => n.level)) + Math.max(...part.nodes.map(n => n.level))) / 2;
+    part.nodes.forEach(n => { n.x -= x; n.level -= y; });
+    const local = { left: Math.min(...part.nodes.map(n => n.x)) * sx - gap / 2, right: Math.max(...part.nodes.map(n => n.x)) * sx + 164 + gap / 2,
+      top: Math.min(...part.nodes.map(n => n.level)) * sy - gap / 2, bottom: Math.max(...part.nodes.map(n => n.level)) * sy + 66 + gap / 2 };
+    // shortcut: large charts keep cluster boxes separate; use polygon packing if real audits need tighter fits.
+    const large = visible.length > 70;
+    let chosen = [0, 0], best = Infinity;
+    for (let i = 0; result.nodes.length && i < 2400; i++) {
+      const radius = (large ? 60 : 30) * Math.sqrt(i), dx = Math.cos(i * angle) * radius * Math.sqrt(aspect) / sx, dy = Math.sin(i * angle) * radius / Math.sqrt(aspect) / sy;
+      part.nodes.forEach(n => { n.x += dx; n.level += dy; });
+      const T = { nodes: [...result.nodes, ...part.nodes], links: [...result.links, ...part.links] };
+      const w = (Math.max(...T.nodes.map(n => n.x)) - Math.min(...T.nodes.map(n => n.x))) * sx + 164;
+      const h = (Math.max(...T.nodes.map(n => n.level)) - Math.min(...T.nodes.map(n => n.level))) * sy + 66;
+      const size = Math.max(w / Math.sqrt(aspect), h * Math.sqrt(aspect));
+      const clear = large ? boxes.every(b => local.right + dx * sx <= b.left || local.left + dx * sx >= b.right || local.bottom + dy * sy <= b.top || local.top + dy * sy >= b.bottom)
+        : size < best && !straightConflicts(T, gap).length;
+      if (size < best && clear) { chosen = [dx, dy]; best = size; }
+      part.nodes.forEach(n => { n.x -= dx; n.level -= dy; });
+      if (Number.isFinite(best) && i > 150) break;
+    }
+    // A separate bounding rectangle is always a safe placement for a very large cluster.
+    if (result.nodes.length && !Number.isFinite(best)) chosen = [Math.max(...result.nodes.map(n => n.x)) - Math.min(...part.nodes.map(n => n.x)) + 2, 0];
+    part.nodes.forEach(n => { n.x += chosen[0]; n.level += chosen[1]; });
+    boxes.push({ left: local.left + chosen[0] * sx, right: local.right + chosen[0] * sx, top: local.top + chosen[1] * sy, bottom: local.bottom + chosen[1] * sy });
+    result.nodes.push(...part.nodes); result.links.push(...part.links);
+  }
+  if (result.nodes.length) {
+    const x = Math.min(...result.nodes.map(n => n.x + (1 - n.span) / 2)), y = Math.min(...result.nodes.map(n => n.level));
+    result.nodes.forEach(n => { n.x -= x; n.level -= y; });
+  }
+  return result;
+}
+
+function gatherSpokes(T, gap, aspect, info) {
+  const sx = 164 + gap, sy = 92 + gap, neighbors = new Map(T.nodes.map(n => [n, []]));
+  for (const [p, c] of T.links) { neighbors.get(p).push(c); neighbors.get(c).push(p); }
+  const importance = n => neighbors.get(n).length + (info[n.it.key]?.unlocks || 0) * .1;
+  const hub = T.nodes.reduce((p, q) => importance(p) >= importance(q) ? p : q), distance = new Map([[hub, 0]]);
+  for (const [n, d] of distance) for (const p of neighbors.get(n)) if (!distance.has(p)) distance.set(p, d + 1);
+  const branches = new Map(T.nodes.map(n => {
+    const group = new Set([n]);
+    for (const p of group) for (const [from, to] of T.links) if (from === p) group.add(to);
+    return [n, [...group]];
+  }));
+  const energy = () => {
+    let cost = T.links.reduce((sum, [p, c]) => sum + (Math.hypot((p.x - c.x) * sx, (p.level - c.level) * sy) / sx - 1) ** 2, 0);
+    for (const [n, d] of distance) cost += .2 * (Math.hypot((n.x - hub.x) * sx / Math.sqrt(aspect), (n.level - hub.level) * sy * Math.sqrt(aspect)) / sx - Math.sqrt(d)) ** 2;
+    for (const [n, kids] of neighbors) for (let i = 0; kids.length > 2 && i < kids.length; i++) for (const q of kids.slice(i + 1)) {
+      const p = kids[i], ax = (p.x - n.x) * sx, ay = (p.level - n.level) * sy, bx = (q.x - n.x) * sx, by = (q.level - n.level) * sy;
+      const dot = (ax * bx + ay * by) / (Math.hypot(ax, ay) * Math.hypot(bx, by));
+      cost += 4 * Math.max(0, dot - .6) ** 2;
+    }
+    return cost;
+  };
+  let best = energy();
+  for (let pass = 0; pass < Math.min(20, Math.ceil(180 / T.nodes.length)); pass++) for (const n of T.nodes)
+    for (const step of [.5, .25, .125]) for (let direction = 0; direction < 8; direction++) for (const branch of [false, true]) {
+      const group = branch ? branches.get(n) : [n], before = group.map(p => [p.x, p.level]);
+      const dx = Math.cos(direction * Math.PI / 4) * step, dy = Math.sin(direction * Math.PI / 4) * step * sx / sy;
+      for (const p of group) { p.x += dx; p.level += dy; }
+      const cost = energy();
+      if (cost < best - .001 && !straightConflicts(T, gap).length) best = cost;
+      else group.forEach((p, i) => { [p.x, p.level] = before[i]; });
+    }
+}
+
 function degreeDrawing(a, width, gap, seed = 0, search = true) {
   width = Math.max(2, Math.min(16, Math.round(width) || 4));
   let state = seed;

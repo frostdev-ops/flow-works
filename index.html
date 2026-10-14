@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Flow-works: your degree as a flowchart</title>
-<meta name="description" content="Turn your Degree Works audit into an top-to-bottom prerequisite flowchart. Open source; runs entirely in your browser.">
+<meta name="description" content="Turn your Degree Works audit into a map of course chains and bottlenecks. Open source; runs entirely in your browser.">
 <meta property="og:title" content="Flow-works">
 <meta property="og:description" content="Your Degree Works audit, as an animated flowchart.">
 <meta property="og:image" content="docs/overview.jpg">
@@ -12,8 +12,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=chains2">
-<script type="module" src="app.js?v=chains2"></script>
+<link rel="stylesheet" href="style.css?v=spokes1">
+<script type="module" src="app.js?v=spokes1"></script>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -47,7 +47,7 @@
     <div class="copy">
       <p class="eyebrow">Open source · for Degree Works students</p>
       <h1>Your degree,<br><em>as a flowchart.</em></h1>
-      <p class="lede">Flow-works turns your Degree Works audit into a top-to-bottom map of what you've finished, what you're taking now, and what comes next. Select any course to see its prerequisites and what it unlocks.</p>
+      <p class="lede">Flow-works turns your Degree Works audit into a map of what you've finished, what you're taking now, and what comes next. Select any course to see its prerequisites and what it unlocks.</p>
       <ol class="steps">
         <li><a id="bm" class="bm" href="#" title="Drag me to your bookmarks bar"><svg><use href="#logo"/></svg>Flow-works</a><span><b>Drag this button</b> to your bookmarks bar.</span></li>
         <li><span><b>Open your Degree Works worksheet</b> and sign in as usual.</span></li>
@@ -102,7 +102,7 @@
     <span class="keys"><span><i class="k done"></i>Completed</span><span><i class="k current"></i>In progress</span><span><i class="k planned"></i>Planned</span><span><i class="k crit"></i>Critical path</span></span>
   </div>
   <div id="chart-controls" class="chart-controls" role="group" aria-label="Flowchart layout">
-    <label for="layout-width">Columns <select id="layout-width"><option value="auto">Auto</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option></select></label>
+    <label for="layout-shape">Shape <select id="layout-shape"><option value="auto">Auto</option><option value="round">Round</option><option value="wide">Wide</option></select></label>
     <label for="layout-spacing">Spacing <input id="layout-spacing" type="range" min="20" max="80" step="4" value="36"><output id="layout-spacing-out" for="layout-spacing">36</output></label>
     <label for="chart-zoom">Zoom <input id="chart-zoom" type="range" min="1" max="150" step="1" value="100"><output id="chart-zoom-out" for="chart-zoom">100%</output></label>
     <button id="fit-chart" class="btn ghost" type="button">Fit all</button>

@@ -2,7 +2,7 @@
 
 **Your Degree Works audit, as a readable flowchart.**
 
-Flow-works turns an Ellucian Degree Works audit into a top-to-bottom prerequisite map: what you've finished, what you're taking now, and a suggested term for everything left. Select any course to focus on its prerequisites and the courses it unlocks.
+Flow-works turns an Ellucian Degree Works audit into a map of prerequisite chains: what you've finished, what you're taking now, and a suggested term for everything left. Select any course to focus on its prerequisites and the courses it unlocks.
 
 **[Try the live demo →](https://frostdev-ops.github.io/flow-works/#demo)**
 
@@ -10,13 +10,13 @@ Flow-works turns an Ellucian Degree Works audit into a top-to-bottom prerequisit
 
 ## The flowchart
 
-The whole degree fits into one canvas on load, including courses without prerequisite links. Branches stay close together, their starting courses sit above the fork, and shared prerequisites appear once. Courses can stagger instead of stretching every branch to the same row. Rows are not terms.
+The whole degree fits into one canvas on load, including courses without prerequisite links. Connected courses gather around the courses that link the most branches. Related chains stay close together in a free arrangement, with shared prerequisites appearing once. Unconnected requirements stay grouped by degree requirement and can be hidden.
 
-Connections are single straight lines attached to the facing edges of each card. Card placement follows the chains and joins, with room reserved for longer links. The layout checks actual segments for crossings, overlaps, and card collisions. Shared joins get a second search that rearranges entire branches and tries different starting orders before using references. When a dense graph cannot fit cleanly, a small course-code reference replaces an endpoint and opens that course’s existing full card. Every prerequisite relationship remains available.
+Connections are single straight arrows attached to the facing edges of each card. Arrows point from a prerequisite to the course it unlocks. Card placement follows the chains and joins, with room reserved for longer links. The layout checks actual segments for crossings, overlaps, and card collisions. Shared joins get a second search that rearranges entire branches and tries different starting orders before using references. When a dense graph cannot fit cleanly, a small course-code reference replaces an endpoint and opens that course’s existing full card. Every prerequisite relationship remains available.
 
 Card color shows how many later courses depend on a course, directly or through another prerequisite: **dark orange for the biggest bottlenecks, through amber to green for fewer dependents**. Each downstream course counts once, even when several paths lead to it. Completed courses retain their dependency color and have a Done badge. Compact cards show the course code, title, and status. Select a card for its term and dependency count.
 
-**Columns: Auto** prefers a layout with unique cards whenever it finds one, then balances the chart for your screen. Choose a column count or change **Spacing** to arrange it yourself. **Fit all** fits both width and height; **Zoom** lets you inspect more closely. **Hide unconnected courses** removes only cards without prerequisite connections; starting courses and shared prerequisites stay visible. Layout and visibility preferences stay in your browser. Very large degrees fit at a smaller scale; select any course to read its details at full size.
+**Shape: Auto** fits the course groups to your screen. Choose **Round** for a wheel or **Wide** for a wider arrangement. **Spacing** controls how closely the cards gather. **Fit all** fits both width and height; **Zoom** lets you inspect more closely. **Hide unconnected courses** removes only cards without prerequisite connections; starting courses and shared prerequisites stay visible. Layout and visibility preferences stay in your browser. Very large degrees fit at a smaller scale; select any course to read its details at full size.
 
 Hover or keyboard-focus a course to trace its prerequisites and what it unlocks. Click it to open its prerequisite tree and the courses that follow it, with breadcrumbs back. Degree progress and requirement groups are available just below the canvas.
 

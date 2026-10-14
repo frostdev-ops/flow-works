@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
-import { parseAudit, columns, analyze, degreeTree, courseTree, prereqGroups, nextTerm, titleCase, priorityColors, treeRoutes } from './model.js';
+import { parseAudit, columns, analyze, degreeTree, degreeScatter, courseTree, prereqGroups, nextTerm, titleCase, priorityColors, treeRoutes } from './model.js';
 
 assert.deepEqual(prereqGroups([['', 'CS', '2300'], ['A', 'MATH', '1160'], ['O', 'MATH', '1350'], ['O', '', '']]), [['CS 2300'], ['MATH 1160', 'MATH 1350']]);
 assert.equal(nextTerm('Fall 2026'), 'Spring 2027');
@@ -223,6 +223,22 @@ for (const graph of [a, sketch, shared, wide, nonplanar]) for (const width of [2
   checkCards(layout, routes, g);
   checkCrossings(routes);
 }
+for (const graph of [a, sketch, shared, nonplanar, independent]) for (const gap of [20, 80]) for (const aspect of [.7, 1.6, 2.2]) {
+  const layout = degreeScatter(graph, gap, aspect), routes = treeRoutes(layout, geometry(layout, gap));
+  assert.equal(layout.nodes.filter(n => n.kind === 'course').length, Object.keys(graph.byKey).length, 'scatter keeps one full card per course');
+  assert.deepEqual(new Set(layout.links.map(link => link[2])), new Set(graph.edges), 'scatter preserves every prerequisite relationship');
+  if (graph === shared) assert.equal(layout.nodes.filter(n => n.kind === 'reference').length, 0, 'scatter needs no references for the reported graph');
+  checkCrossings(routes); checkCards(layout, routes, geometry(layout, gap));
+}
+const spoke = degreeScatter(shared, 36, 1.6), hub = spoke.nodes.find(n => n.key === 'CS 2352');
+const neighbors = spoke.links.filter(([p, c]) => p === hub || c === hub).map(([p, c]) => p === hub ? c : p);
+assert.ok(neighbors.some(n => n.x < hub.x) && neighbors.some(n => n.x > hub.x) && neighbors.some(n => n.level < hub.level) && neighbors.some(n => n.level > hub.level), 'shared courses form spokes around a hub');
+assert.ok(spoke.links.every(([p, c]) => Math.hypot((p.x - c.x) * 200, (p.level - c.level) * 128) < 500), 'the reported graph has short connections between related cards');
+const largeScatter = degreeScatter(wide), largeRoutes = treeRoutes(largeScatter, geometry(largeScatter, 36));
+assert.equal(largeScatter.nodes.filter(n => n.kind === 'course').length, 122, 'large scatter keeps every full card');
+assert.equal(largeScatter.links.length, wide.edges.length, 'large scatter preserves every connection');
+checkCrossings(largeRoutes); checkCards(largeScatter, largeRoutes, geometry(largeScatter, 36));
+assert.deepEqual(degreeScatter({ byKey: {}, edges: [] }), { nodes: [], links: [], scatter: true });
 const diamond = analyze([
   { items: [{ key: 'root', code: 'ROOT', status: 'done' }] },
   { items: [{ key: 'left', code: 'LEFT', status: 'planned', prereqs: [['ROOT']] }, { key: 'right', code: 'RIGHT', status: 'planned', prereqs: [['ROOT']] }] },
