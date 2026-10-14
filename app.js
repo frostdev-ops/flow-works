@@ -1,4 +1,4 @@
-import { parseAudit, columns, analyze, degreeTree, courseTree, priorityColors, treeRoutes } from './model.js';
+import { parseAudit, columns, analyze, degreeTree, courseTree, priorityColors, treeRoutes } from './model.js?v=chains1';
 
 const $ = s => document.querySelector(s);
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
